@@ -22,16 +22,14 @@ Function Initialize-Migration {
         $ADGroups = Get-ADGroup -Filter * -SearchBase $ADSearchBase
         #Write-Verbose $ADGroups
         foreach ($ADGroup in $ADGroups) {
-            $fileName = $ADGroup.Name
-            $CSV = $fileName + ".csv"
-            #Write-Output $CSV
-            $ADGroupMembers = Get-ADGroupMember -Identity $ADGroup | foreach {
+            $CSV = ($ADGroup.Name) + ".csv"
+            $ADGroupMembers = Get-ADGroupMember -Identity $ADGroup | ForEach-Object {
                 [pscustomobject]@{
                     GroupName = $ADGroup.Name
                     Name = $_.SamAccountName
                 }
             }
-            $ADGroupMembers | Export-Csv -Path "D:\Temp\Csv\$($CSV)" -Delimiter ";"
+            $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
         }
     } Catch {
         Write-Error $error.Count
