@@ -3,19 +3,25 @@
 Import-Module ActiveDirectory -ErrorAction SilentlyContinue
 
 #Set Initial Variables
-$exportDir = 'D:\Migratie\Csv'      #locatie voor de export CSV's
-$loggingDir = 'D:\Migratie\Logging' #locatie voor de logging
+$workingDir = "D:\Migratie"         #Basis directory. LET OP: Geen \ op het einde toevoegen!
+
+#VANAF HIER GEEN AANPASSINGEN MAKEN AAN HET SCRIPT#
+
+$csvDir = "$($workingDir)\Csv"      #locatie voor de export CSV's
+$logDir = "$($workingDir)\Logging"  #locatie voor de logging
+$xmlDir = "$($workingDir)\Xml"      #locatie voor XML bestanden
 
 Function Get-MigrateADGroup {
     #haal oude groepen op
     [CmdLetBinding()]
     Param (
-        [Parameter(ValueFromPipeline=$true)]
-        [string[]]$Identity,
+        [Parameter(ValueFromPipeline=$true,Mandatory=$false)]
+        [string[]]$Name,
         $fromCsv
     )
-    #$ADGroups = Get-ADGroup 
-    
+    try {
+        $ADGroups = Get-ADGroup -Filter {Name -like $name}
+    }
 }
 
 Function Export-MigrateADusersToCsv {
