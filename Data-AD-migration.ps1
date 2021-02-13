@@ -20,7 +20,7 @@ Function Initialize-Migration {
     )
     BEGIN {
         try {
-            Write-MigrateLogging -LogLevel Information -LogMessage "Initialize-Migration started with SearchBase $($ADSearchBase)"
+            Write-MigrateLogging -LogMessage "Initialize-Migration() started with SearchBase $($ADSearchBase)"
             $ADGroups = Get-ADGroup -Filter * -SearchBase $ADSearchBase
             foreach ($ADGroup in $ADGroups) {
                 $CSV = ($ADGroup.Name) + ".csv"
@@ -31,11 +31,14 @@ Function Initialize-Migration {
                     }
                 }
                 $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
-                #Write-Verbose "AD groep leden van $($ADGroup.Name): opgeslagen in $($csvDir)$($CSV)"
-                Write-MigrateLogging -LogLevel Information -LogMessage "AD groep leden van $($ADGroup.Name): opgeslagen in $($csvDir)$($CSV)"
+                Write-Verbose "AD groep leden van $($ADGroup.Name): opgeslagen in $($csvDir)$($CSV)"
+                Write-MigrateLogging -LogMessage "AD groep leden van $($ADGroup.Name): opgeslagen in $($csvDir)$($CSV)"
             }
         } Catch {
             Write-Error $error.Message
+        } Finally {
+            Write-Output "Initialize-Migration() executed succesfully. See logging for full details"
+            Write-MigrateLogging -LogMessage "Initialize-Migration() executed succesfully"
         }
     }
 }
@@ -56,9 +59,9 @@ Function New-RollbackMigration {
 Function Write-MigrateLogging {
     #schrijf migratie logging weg, zodat er altijd kan worden nagegaan wat er gebeurt is
     Param(
-        [Parameter(Mandatory=$true)]
+        [Parameter]
         [ValidateSet('Error','Information','Warning','Critical')]
-        [string]$LogLevel,
+        [string]$LogLevel="Information",
         [Parameter(Mandatory=$true)]
         [string]$LogMessage        
     )
