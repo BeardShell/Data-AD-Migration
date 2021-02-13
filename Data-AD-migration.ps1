@@ -8,9 +8,9 @@ $ADSearchBase = "OU=Data Toegang,OU=Groepen,OU=Organisatie Nieuw,DC=lv,DC=leidsc
 
 #VANAF HIER GEEN AANPASSINGEN MAKEN AAN HET SCRIPT#
 
-$csvDir = "$($workingDir)\Csv"      #locatie voor de export CSV's
-$logDir = "$($workingDir)\Logging"  #locatie voor de logging
-$xmlDir = "$($workingDir)\Xml"      #locatie voor XML bestanden
+$csvDir = "$($workingDir)\Csv\"      #locatie voor de export CSV's
+$logDir = "$($workingDir)\Logging\"  #locatie voor de logging
+$xmlDir = "$($workingDir)\Xml\"      #locatie voor XML bestanden
 
 Function Initialize-Migration {
     [CmdLetBinding()]
@@ -20,7 +20,6 @@ Function Initialize-Migration {
     )
     try {
         $ADGroups = Get-ADGroup -Filter * -SearchBase $ADSearchBase
-        #Write-Verbose $ADGroups
         foreach ($ADGroup in $ADGroups) {
             $CSV = ($ADGroup.Name) + ".csv"
             $ADGroupMembers = Get-ADGroupMember -Identity $ADGroup | ForEach-Object {
