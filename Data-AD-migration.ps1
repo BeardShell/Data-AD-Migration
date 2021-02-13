@@ -18,48 +18,50 @@ Function Initialize-Migration {
         [Parameter(ValueFromPipeline=$true,Mandatory=$true)]
         [string]$ADSearchBase
     )
-    try {
-        $ADGroups = Get-ADGroup -Filter * -SearchBase $ADSearchBase
-        foreach ($ADGroup in $ADGroups) {
-            $CSV = ($ADGroup.Name) + ".csv"
-            $ADGroupMembers = Get-ADGroupMember -Identity $ADGroup | ForEach-Object {
-                [pscustomobject]@{
-                    GroupName = $ADGroup.Name
-                    Name = $_.SamAccountName
+    BEGIN {
+        try {
+            Write-MigrateLogging -LogLevel Information -LogMessage "Initialize-Migration started with SearchBase $($ADSearchBase)"
+            $ADGroups = Get-ADGroup -Filter * -SearchBase $ADSearchBase
+            foreach ($ADGroup in $ADGroups) {
+                $CSV = ($ADGroup.Name) + ".csv"
+                $ADGroupMembers = Get-ADGroupMember -Identity $ADGroup | ForEach-Object {
+                    [pscustomobject]@{
+                        GroupName = $ADGroup.Name
+                        Name = $_.SamAccountName
+                    }
                 }
+                $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
+                #Write-Verbose "AD groep leden van $($ADGroup.Name): opgeslagen in $($csvDir)$($CSV)"
+                Write-MigrateLogging -LogLevel Information -LogMessage "AD groep leden van $($ADGroup.Name): opgeslagen in $($csvDir)$($CSV)"
             }
-            $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
+        } Catch {
+            Write-Error $error.Message
         }
-    } Catch {
-        Write-Error $error.Count
-    }
-}
-
-Function Get-MigrateADGroup {
-    #haal oude groepen op
-    [CmdLetBinding()]
-    Param (
-        [Parameter(ValueFromPipeline=$true,Mandatory=$false)]
-        [string[]]$Name,
-        $fromCsv
-    )
-    try {
-        $ADGroups = Get-ADGroup -Filter {Name -like $name}
     }
 }
 
 Function Export-MigrateADusersToCsv {
-
+    return 0
 }
 
 Function Set-MigrateNTFSRights {
-
+    return 0
 }
 
 Function New-RollbackMigration {
     #draai de migratie terug (functie moet nog uitgedacht worden)
+    return 0
 }
 
 Function Write-MigrateLogging {
     #schrijf migratie logging weg, zodat er altijd kan worden nagegaan wat er gebeurt is
+    Param(
+        [Parameter(Mandatory=$true)]
+        [ValidateSet('Error','Information','Warning','Critical')]
+        [string]$LogLevel,
+        [Parameter(Mandatory=$true)]
+        [string]$LogMessage        
+    )
+    $dateTime = Get-Date -Format "dd-MM-yyyy HH:mm:ss:fff"
+    "$($dateTime): [$($logLevel)] - $($logMessage)" | Out-File -FilePath ($($logDir) + "MigrateLogging.txt") -Append
 }
