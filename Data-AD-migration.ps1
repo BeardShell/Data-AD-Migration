@@ -43,15 +43,18 @@ Function Initialize-Migration {
     }
 }
 
-Function Export-MigrateADusersToCsv {
-    return 0
+Function New-ADMigrationGroups {
+    Param(
+        [Parameter(ValueFromPipeline=$true,Mandatory=$true)]
+        [string]
+    )
 }
 
 Function Set-MigrateNTFSRights {
     return 0
 }
 
-Function New-RollbackMigration {
+Function Initialize-RollbackMigration {
     #draai de migratie terug (functie moet nog uitgedacht worden)
     return 0
 }
