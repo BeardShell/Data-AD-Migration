@@ -80,7 +80,13 @@ Function Initialize-RollbackMigration {
     #draai de migratie terug (functie moet nog uitgedacht worden)
     return 0
 }
-
+Function New-MigrateReadGroup {
+    Param(
+        [string]$SecurityGroup
+    )
+    
+    return (($SecurityGroup -split "\\")[1]) + "_R"
+}
 Function Write-MigrateLogging {
     #schrijf migratie logging weg, zodat er altijd kan worden nagegaan wat er gebeurt is
     Param(
