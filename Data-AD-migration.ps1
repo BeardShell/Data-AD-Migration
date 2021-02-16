@@ -43,6 +43,28 @@ Function Initialize-Migration {
     }
 }
 
+Function foo {
+    [CmdletBinding()]
+    Param(
+        [Parameter(ValueFromPipeline=$false,Mandatory=$true)]
+        [string]$Path,
+        [boolean]$Recurse=$true,
+        [boolean]$Directory=$true,
+        [int]$Depth=1
+    )
+    $folders = Get-ChildItem -Path $Path -Recurse $Recurse -Directory $Directory -Depth $Depth
+    ForEach-Object $folder in $folders {
+        Get-NTFSAccess -Path $folder.FullName -ExcludeInherited | ForEach-Object {
+            if (($_.Account -like "LV\N-*") -or ($_.Account -like "LV\DT_*") -or ($_.Account -like "LV\B-*") -or ($_.Account -like "LV\P-*") -or ($_.Account -like "LV\AG_*")) {
+                [pscustomobject]@{
+                    Fullname = $folder.FullName
+                    SecGroup = $_.Account
+                }
+            }
+        }
+    }
+}
+
 Function New-ADMigrationGroups {
     Param(
         [Parameter(ValueFromPipeline=$true,Mandatory=$true)]
