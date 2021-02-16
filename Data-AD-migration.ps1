@@ -43,7 +43,7 @@ Function Initialize-Migration {
     }
 }
 
-Function foo {
+Function Get-PathWithSecurityGroup {
     [CmdletBinding()]
     Param(
         [Parameter(ValueFromPipeline=$false,Mandatory=$true)]
@@ -52,16 +52,26 @@ Function foo {
         [boolean]$Directory=$true,
         [int]$Depth=1
     )
-    $folders = Get-ChildItem -Path $Path -Recurse $Recurse -Directory $Directory -Depth $Depth
-    ForEach-Object $folder in $folders {
-        Get-NTFSAccess -Path $folder.FullName -ExcludeInherited | ForEach-Object {
-            if (($_.Account -like "LV\N-*") -or ($_.Account -like "LV\DT_*") -or ($_.Account -like "LV\B-*") -or ($_.Account -like "LV\P-*") -or ($_.Account -like "LV\AG_*")) {
-                [pscustomobject]@{
-                    Fullname = $folder.FullName
-                    SecGroup = $_.Account
+    try {
+        Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() gestart"
+        $folders = Get-ChildItem -Path $Path -Recurse $Recurse -Directory $Directory -Depth $Depth
+        ForEach-Object $folder in $folders {
+            Get-NTFSAccess -Path $folder.FullName -ExcludeInherited | ForEach-Object {
+                if (($_.Account -like "LV\N-*") -or ($_.Account -like "LV\DT_*") -or ($_.Account -like "LV\B-*") -or ($_.Account -like "LV\P-*") -or ($_.Account -like "LV\AG_*")) {
+                    $NewSecGroup = New-MigrateReadGroup -SecurityGroup $_.Account
+                    $MigrationObjects = [pscustomobject]@{
+                        Fullname = $folder.FullName
+                        OldSecGroup = $_.Account
+                        NewSecGroup = $NewSecGroup
+                    }
                 }
             }
+            $MigrationObjects | Export-Csv "$($csvDir)SecurityGroups.csv" -Delimiter ";" -Append -NoTypeInformation
+            Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() succesvol uitgevoerd."
         }
+    } catch {
+        Write-Error "Foutje!"
+        Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() fout opgetreden: $($error)" -LogLevel Error
     }
 }
 
@@ -84,8 +94,21 @@ Function New-MigrateReadGroup {
     Param(
         [string]$SecurityGroup
     )
-    
-    return (($SecurityGroup -split "\\")[1]) + "_R"
+
+    if ($SecurityGroup -notmatch "DT_") {
+        $SecurityGroupSplit = $SecurityGroup -split ("\\")
+        $SecurityGroup = $SecurityGroupSplit[1]
+        $SecurityGroup = $SecurityGroup.Substring(2)
+        $SecurityGroup = "DT_Organisatie_" + $SecurityGroup + "_R"            
+    } else {
+        $SecurityGroup = (($SecurityGroup -split "\\")[1]) + "_R"
+        if ($SecurityGroup -notmatch "DT_Organisatie") {
+            $SecurityGroup = $SecurityGroup.Substring(3)
+            $SecurityGroup = "DT_Organisatie_" + $SecurityGroup
+        }
+    }
+
+    return $SecurityGroup.ToString()
 }
 Function Write-MigrateLogging {
     #schrijf migratie logging weg, zodat er altijd kan worden nagegaan wat er gebeurt is
