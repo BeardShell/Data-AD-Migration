@@ -1,6 +1,13 @@
 # Data AD Migration Tool
 
-Import-Module ActiveDirectory -ErrorAction SilentlyContinue
+try {
+    Import-Module ActiveDirectory -ErrorAction Stop
+} catch [System.IO.FileNotFoundException] {
+    Write-MigrateLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory niet gelukt! Voer de volgende code uit om dit probleem op te lossen: Initialize-Module(ActiveDirectory)"
+} catch {
+    Write-MigrateLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory niet gelukt! $($error[-1])"
+}
+
 Import-Module NTFSSecurity -ErrorAction Stop
 
 #Set Initial Variables
@@ -13,6 +20,33 @@ $csvDir = "$($workingDir)\Csv\"      #locatie voor de export CSV's
 $logDir = "$($workingDir)\Logging\"  #locatie voor de logging
 $xmlDir = "$($workingDir)\Xml\"      #locatie voor XML bestanden
 
+Function Initialize-Module ($m) {
+    # If module is imported say that and do nothing
+    if (Get-Module | Where-Object {$_.Name -eq $m}) {
+        write-host "Module $m is already imported."
+    }
+    else {
+
+        # If module is not imported, but available on disk then import
+        if (Get-Module -ListAvailable | Where-Object {$_.Name -eq $m}) {
+            Import-Module $m -Verbose
+        }
+        else {
+
+            # If module is not imported, not available on disk, but is in online gallery then install and import
+            if (Find-Module -Name $m | Where-Object {$_.Name -eq $m}) {
+                Install-Module -Name $m -Force -Verbose -Scope CurrentUser
+                Import-Module $m -Verbose
+            }
+            else {
+
+                # If module is not imported, not available and not in online gallery then abort
+                write-host "Module $m not imported, not available and not in online gallery, exiting."
+                EXIT 1
+            }
+        }
+    }
+}
 Function Set-MigrationBasics {
     If (!(Test-Path $workingDir)) {
         New-Item -ItemType Directory -Path $workingDir
@@ -135,12 +169,12 @@ Function New-MigrateReadGroup {
 Function Write-MigrateLogging {
     #schrijf migratie logging weg, zodat er altijd kan worden nagegaan wat er gebeurt is
     Param(
-        [Parameter]
+        [Parameter()]
         [ValidateSet('Error','Information','Warning','Critical')]
         [string]$LogLevel="Information",
         [Parameter(Mandatory=$true)]
         [string]$LogMessage        
     )
     $dateTime = Get-Date -Format "dd-MM-yyyy HH:mm:ss:fff"
-    "$($dateTime): [$($logLevel)] - $($logMessage)" | Out-File -FilePath ($($logDir) + "MigrateLogging.txt") -Append
+    "$($dateTime): [$($LogLevel)] - $($LogMessage)" | Out-File -FilePath ($($logDir) + "MigrateLogging.txt") -Append
 }
