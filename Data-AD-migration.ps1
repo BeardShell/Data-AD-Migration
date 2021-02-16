@@ -1,6 +1,7 @@
 # Data AD Migration Tool
 
 Import-Module ActiveDirectory -ErrorAction SilentlyContinue
+Import-Module NTFSSecurity -ErrorAction Stop
 
 #Set Initial Variables
 $workingDir = "D:\Migratie"         #Basis directory. LET OP: Geen \ op het einde toevoegen!
@@ -12,6 +13,27 @@ $csvDir = "$($workingDir)\Csv\"      #locatie voor de export CSV's
 $logDir = "$($workingDir)\Logging\"  #locatie voor de logging
 $xmlDir = "$($workingDir)\Xml\"      #locatie voor XML bestanden
 
+Function Set-MigrationBasics {
+    If (!(Test-Path $workingDir)) {
+        New-Item -ItemType Directory -Path $workingDir
+        Write-MigrateLogging -LogMessage "Folder $($workingDir) aangemaakt."
+    }
+
+    If (!(Test-Path $csvDir)) {
+        New-Item -ItemType Directory -Path $csvDir
+        Write-MigrateLogging -LogMessage "Folder $($csvDir) aangemaakt."
+    }
+
+    If (!(Test-Path $logDir)) {
+        New-Item -ItemType Directory -Path $logDir
+        Write-MigrateLogging -LogMessage "Folder $($logDir) aangemaakt."
+    }
+
+    If (!(Test-Path $xmlDir)) {
+        New-Item -ItemType Directory -Path $xmlDir
+        Write-MigrateLogging -LogMessage "Folder $($xmlDir) aangemaakt."
+    }
+}
 Function Initialize-Migration {
     [CmdLetBinding()]
     Param (
@@ -78,7 +100,7 @@ Function Get-PathWithSecurityGroup {
 Function New-ADMigrationGroups {
     Param(
         [Parameter(ValueFromPipeline=$true,Mandatory=$true)]
-        [string]
+        [string]$test
     )
 }
 
