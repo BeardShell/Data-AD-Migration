@@ -50,17 +50,16 @@ Function Initialize-Module ($m) {
 Function Set-MigrationBasics {
     If (!(Test-Path $workingDir)) {
         New-Item -ItemType Directory -Path $workingDir
-        Write-MigrateLogging -LogMessage "Folder $($workingDir) aangemaakt."
-    }
-
-    If (!(Test-Path $csvDir)) {
-        New-Item -ItemType Directory -Path $csvDir
-        Write-MigrateLogging -LogMessage "Folder $($csvDir) aangemaakt."
     }
 
     If (!(Test-Path $logDir)) {
         New-Item -ItemType Directory -Path $logDir
         Write-MigrateLogging -LogMessage "Folder $($logDir) aangemaakt."
+    }
+
+    If (!(Test-Path $csvDir)) {
+        New-Item -ItemType Directory -Path $csvDir
+        Write-MigrateLogging -LogMessage "Folder $($csvDir) aangemaakt."
     }
 
     If (!(Test-Path $xmlDir)) {
@@ -104,12 +103,10 @@ Function Get-PathWithSecurityGroup {
     Param(
         [Parameter(ValueFromPipeline=$false,Mandatory=$true)]
         [string]$Path,
-        [boolean]$Recurse=$true,
-        [boolean]$Directory=$true,
         [int]$Depth=1
     )
     try {
-        $DfsPath = Get-ChildItem -Path "\\lv\dfs\Organisatie" -Directory
+        $DfsPath = Get-ChildItem -Path $Path -Directory
     
         $directory = @()
         $summaryArray = @()
@@ -124,7 +121,6 @@ Function Get-PathWithSecurityGroup {
                         DFSPath = $subject
                         currentACL = $id.IdentityReference
                         newACL = (New-MigrateReadGroup -SecurityGroup $id.IdentityReference)
-                        #Inheritance = $id.IsInherited
                     }
                     $summaryArray += $summary
                     $summary | Export-Csv -Path "$($csvDir)Securitygroups.csv" -Delimiter ";" -NoTypeInformation
