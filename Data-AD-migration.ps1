@@ -77,7 +77,7 @@ Function Initialize-Migration {
         [Parameter(ValueFromPipeline=$true,Mandatory=$true)]
         [string]$ADSearchBase
     )
-    BEGIN {
+    PROCESS {
         try {
             Write-MigrateLogging -LogMessage "Initialize-Migration() started with SearchBase $($ADSearchBase)"
             $ADGroups = Get-ADGroup -Filter * -SearchBase $ADSearchBase
@@ -103,7 +103,7 @@ Function Initialize-Migration {
 }
 
 Function Get-PathWithSecurityGroup {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(ValueFromPipeline=$true,Mandatory=$true, Position=0)]
         [string]$RootPath
@@ -136,8 +136,6 @@ Function Get-PathWithSecurityGroup {
         } catch {
             Write-Error "Oops, my bad! " $PSItem
             Write-Migrate Logging -LogMessage "Get-PathWithSecurityGroup() error occured: $($error)" -LogLevel Error
-        } finally {
-            #Write-Output "Status: Success. Check the output CSV ($($csvDir)Securitygroups.csv) if you're satisfied.`nIf required, run CmdLet New-ADMigrationGroups."
         }
     }
 }
