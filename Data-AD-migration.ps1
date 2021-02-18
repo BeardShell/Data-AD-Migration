@@ -109,25 +109,30 @@ Function Get-PathWithSecurityGroup {
         [int]$Depth=1
     )
     try {
-        Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() gestart"
-        $folders = Get-ChildItem -Path $Path -Recurse $Recurse -Directory $Directory -Depth $Depth | Select-Object FullName
-        ForEach-Object $folder in $folders {
-            $NTFSGroups = Get-NTFSAccess -Path $folder.FullName -ExcludeInherited
-            foreach ($NTFSGroup in $NTFSGroups) {
-                if (($NTFSGroup.Account.AccountName -like "LV\N-*") -or ($NTFSGroup.Account.AccountName -like "LV\DT_*") -or ($NTFSGroup.Account.AccountName -like "LV\B-*") -or ($NTFSGroup.Account.AccountName -like "LV\P-*") -or ($NTFSGroup.Account.AccountName -like "LV\AG_*")) {
-                    $NewSecGroup = New-MigrateReadGroup -SecurityGroup $NTFSGroup.Account.AccountName
-                    $MigrationObjects = [pscustomobject]@{
-                        Fullname = $folder.FullName
-                        OldSecGroup = $NTFSGroup.Account.AccountName
-                        NewSecGroup = $NewSecGroup
+        $DfsPath = Get-ChildItem -Path "\\lv\dfs\Organisatie" -Directory
+    
+        $directory = @()
+        $summaryArray = @()
+    
+        foreach ($path in $DfsPath) {
+            $directory += $path.FullName   
+        }
+        foreach ($subject in $directory) { 
+            foreach ($id in ((Get-Acl -Path $subject).Access | Where-Object {$_.IsInherited -eq $false})) {
+                if (($id.IdentityReference -like "LV\DT_*") -or ($id.IdentityReference -like "LV\B-*") -or ($id.IdentityReference -like "LV\N-*" -or ($id.IdentityReference -like "LV\P-*") -or ($id.IdentityReference -like "LV\AG-*"))) {
+                    $summary = [pscustomobject] @{
+                        DFSPath = $subject
+                        currentACL = $id.IdentityReference
+                        newACL = (New-MigrateReadGroup -SecurityGroup $id.IdentityReference)
+                        #Inheritance = $id.IsInherited
                     }
+                    $summaryArray += $summary
+                    $summary | Export-Csv -Path "$($csvDir)Securitygroups.csv" -Delimiter ";" -NoTypeInformation
                 }
             }
-            $MigrationObjects | Export-Csv "$($csvDir)SecurityGroups.csv" -Delimiter ";" -Append -NoTypeInformation
-            Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() succesvol uitgevoerd." 
         }
     } catch {
-        Write-Error "Foutje in Get-PathWithSecurityGroup()!" #Catch moet nog verder worden uitgewerkt
+        Write-Error "Foutje! " $PSItem
         Write-Migrate Logging -LogMessage "Get-PathWithSecurityGroup() fout opgetreden: $($error)" -LogLevel Error
     } finally {
         Write-Output "Functie volledig uitgevoerd. Controleer de output CSV ($($csvDir)Securitygroups.csv) en verwijder duplicate input.`nStart vervolgens CmdLet New-ADMigrationGroups."
