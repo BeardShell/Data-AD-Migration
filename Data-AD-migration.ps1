@@ -1,25 +1,27 @@
 # Data AD Migration Tool
 
+# Test bit for module import
 try {
     Import-Module ActiveDirectory -ErrorAction Stop
 } catch [System.IO.FileNotFoundException] {
-    Write-MigrateLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory niet gelukt! Voer de volgende code uit om dit probleem op te lossen: Initialize-Module(ActiveDirectory)"
+    Write-MigrateLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory failed! Try this code to fix the problem: Initialize-Module(ActiveDirectory)"
 } catch {
-    Write-MigrateLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory niet gelukt! $($error[-1])"
+    Write-MigrateLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory failed! $($error[-1])"
 }
 
 Import-Module NTFSSecurity -ErrorAction Stop
 
 #Set Initial Variables
-$workingDir = "D:\Migratie"         #Basis directory. LET OP: Geen \ op het einde toevoegen!
-$ADSearchBase = "" #Use searchbase (example: OU=SecurityGroups,DC=contose,DC=com)
+$workingDir = "D:\Migratie"         #Base directory. IMPORTANT: Don't add a trailing backslash (\) at the end!
+$ADSearchBase = ""                  #Use searchbase (example: OU=SecurityGroups,DC=contose,DC=com)
 
-#VANAF HIER GEEN AANPASSINGEN MAKEN AAN HET SCRIPT#
+#--- DO NOT MAKE ANY ALTERATIONS TO THE SCRIPT BELOW THIS LINE ---#
 
-$csvDir = "$($workingDir)\Csv\"      #locatie voor de export CSV's
-$logDir = "$($workingDir)\Logging\"  #locatie voor de logging
-$xmlDir = "$($workingDir)\Xml\"      #locatie voor XML bestanden
+$csvDir = "$($workingDir)\Csv\"     #location for csv files
+$logDir = "$($workingDir)\Log\"     #location for log files
+$xmlDir = "$($workingDir)\Xml\"     #location for xml files, don't know if we will use this
 
+#NOT my module, have to check it and make it consistence to the way I wright. Also I have to check where I found it to give credits to the original author!
 Function Initialize-Module ($m) {
     # If module is imported say that and do nothing
     if (Get-Module | Where-Object {$_.Name -eq $m}) {
@@ -48,23 +50,25 @@ Function Initialize-Module ($m) {
     }
 }
 Function Set-MigrationBasics {
+    #Chech for directory existence and fix it if neccesary. 
     If (!(Test-Path $workingDir)) {
         New-Item -ItemType Directory -Path $workingDir
+        #No Write-MigrateLogging in this step, it will fail for not having the $logDir yet.
     }
 
     If (!(Test-Path $logDir)) {
         New-Item -ItemType Directory -Path $logDir
-        Write-MigrateLogging -LogMessage "Folder $($logDir) aangemaakt."
+        Write-MigrateLogging -LogMessage "Directory $($logDir) created."
     }
 
     If (!(Test-Path $csvDir)) {
         New-Item -ItemType Directory -Path $csvDir
-        Write-MigrateLogging -LogMessage "Folder $($csvDir) aangemaakt."
+        Write-MigrateLogging -LogMessage "Directory $($csvDir) created."
     }
 
     If (!(Test-Path $xmlDir)) {
         New-Item -ItemType Directory -Path $xmlDir
-        Write-MigrateLogging -LogMessage "Folder $($xmlDir) aangemaakt."
+        Write-MigrateLogging -LogMessage "Directory $($xmlDir) created."
     }
 }
 Function Initialize-Migration {
@@ -86,8 +90,8 @@ Function Initialize-Migration {
                     }
                 }
                 $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
-                Write-Verbose "AD groep leden van $($ADGroup.Name): opgeslagen in $($csvDir)$($CSV)"
-                Write-MigrateLogging -LogMessage "AD groep leden van $($ADGroup.Name): opgeslagen in $($csvDir)$($CSV)"
+                Write-Verbose "AD group members from $($ADGroup.Name): saved in $($csvDir)$($CSV)"
+                Write-MigrateLogging -LogMessage "AD group members from $($ADGroup.Name): saved in $($csvDir)$($CSV)"
             }
         } Catch {
             Write-Error $error.Message
@@ -128,10 +132,10 @@ Function Get-PathWithSecurityGroup {
             }
         }
     } catch {
-        Write-Error "Foutje! " $PSItem
-        Write-Migrate Logging -LogMessage "Get-PathWithSecurityGroup() fout opgetreden: $($error)" -LogLevel Error
+        Write-Error "Oops, my bad! " $PSItem
+        Write-Migrate Logging -LogMessage "Get-PathWithSecurityGroup() error occured: $($error)" -LogLevel Error
     } finally {
-        Write-Output "Functie volledig uitgevoerd. Controleer de output CSV ($($csvDir)Securitygroups.csv) en verwijder duplicate input.`nStart vervolgens CmdLet New-ADMigrationGroups."
+        Write-Output "Status: Success. Check the output CSV ($($csvDir)Securitygroups.csv) if you're satisfied.`nIf required, run CmdLet New-ADMigrationGroups."
     }
 }
 
@@ -151,7 +155,7 @@ Function Set-MigrateNTFSRights {
 }
 
 Function Initialize-RollbackMigration {
-    #draai de migratie terug (functie moet nog uitgedacht worden)
+    #revert migration, yet to be build
     return 0
 }
 Function New-MigrateReadGroup {
@@ -175,7 +179,7 @@ Function New-MigrateReadGroup {
     return $SecurityGroup.ToString()
 }
 Function Write-MigrateLogging {
-    #schrijf migratie logging weg, zodat er altijd kan worden nagegaan wat er gebeurt is
+    #Function to write logging to keep a log of all that's happened.
     Param(
         [Parameter()]
         [ValidateSet('Error','Information','Warning','Critical')]
