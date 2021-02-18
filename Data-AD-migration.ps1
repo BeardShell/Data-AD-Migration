@@ -13,13 +13,13 @@ Import-Module NTFSSecurity -ErrorAction Stop
 
 #Set Initial Variables
 $workingDir = "D:\Migratie"         #Base directory. IMPORTANT: Don't add a trailing backslash (\) at the end!
-$ADSearchBase = "" #Use searchbase (example: OU=SecurityGroups,DC=contose,DC=com)
+$ADSearchBase = ""                  #Use searchbase (example: OU=SecurityGroups,DC=contose,DC=com)
 
 #--- DO NOT MAKE ANY ALTERATIONS TO THE SCRIPT BELOW THIS LINE ---#
 
-$csvDir = "$($workingDir)\Csv\"      #locatie voor de export CSV's
-$logDir = "$($workingDir)\Log\"      #locatie voor de logging
-$xmlDir = "$($workingDir)\Xml\"      #locatie voor XML bestanden
+$csvDir = "$($workingDir)\Csv\"     #location for csv files
+$logDir = "$($workingDir)\Log\"     #location for log files
+$xmlDir = "$($workingDir)\Xml\"     #location for xml files, don't know if we will use this
 
 #NOT my module, have to check it and make it consistence to the way I wright. Also I have to check where I found it to give credits to the original author!
 Function Initialize-Module ($m) {
