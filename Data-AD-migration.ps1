@@ -12,7 +12,7 @@ Import-Module NTFSSecurity -ErrorAction Stop
 
 #Set Initial Variables
 $workingDir = "D:\Migratie"         #Basis directory. LET OP: Geen \ op het einde toevoegen!
-$ADSearchBase = "OU=Data Toegang,OU=Groepen,OU=Organisatie Nieuw,DC=lv,DC=leidschendamvoorburg,DC=nl"
+$ADSearchBase = "" #Use searchbase (example: OU=SecurityGroups,DC=contose,DC=com)
 
 #VANAF HIER GEEN AANPASSINGEN MAKEN AAN HET SCRIPT#
 
