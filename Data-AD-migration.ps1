@@ -124,19 +124,25 @@ Function Get-PathWithSecurityGroup {
                 }
             }
             $MigrationObjects | Export-Csv "$($csvDir)SecurityGroups.csv" -Delimiter ";" -Append -NoTypeInformation
-            Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() succesvol uitgevoerd."
+            Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() succesvol uitgevoerd." 
         }
     } catch {
         Write-Error "Foutje in Get-PathWithSecurityGroup()!" #Catch moet nog verder worden uitgewerkt
-        Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() fout opgetreden: $($error)" -LogLevel Error
+        Write-Migrate Logging -LogMessage "Get-PathWithSecurityGroup() fout opgetreden: $($error)" -LogLevel Error
+    } finally {
+        Write-Output "Functie volledig uitgevoerd. Controleer de output CSV ($($csvDir)Securitygroups.csv) en verwijder duplicate input.`nStart vervolgens CmdLet New-ADMigrationGroups."
     }
 }
 
 Function New-ADMigrationGroups {
     Param(
-        [Parameter(ValueFromPipeline=$true,Mandatory=$true)]
+        [Parameter(ValueFromPipeline=$true,Mandatory=$false)]
         [string]$test
     )
+    $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
+    ForEach-Object $line in $csvFile {
+        Write-Output "Creating AD Security group: $($line.NewSecGroup)"
+    }
 }
 
 Function Set-MigrateNTFSRights {
