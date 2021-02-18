@@ -141,13 +141,18 @@ Function Get-PathWithSecurityGroup {
 }
 
 Function New-ADMigrationGroups {
+    [CmdletBinding(SupportsShouldProcess)]
     Param(
         [Parameter(ValueFromPipeline=$true,Mandatory=$false)]
-        [string]$test
+        [string]$OUPath,
+        [string]$Description="Created by New-ADMigration PowerShell function."
     )
     $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
-    ForEach-Object $line in $csvFile {
-        Write-Output "Creating AD Security group: $($line.NewSecGroup)"
+    foreach ($line in $csvFile) {
+        New-ADGroup -DisplayName $line.newACL -GroupScope DomainLocal -GroupCategory Security -Name $line.newACL -SamAccountName $line.newACL -Path $OUPath -Description $Description -WhatIf
+        if ($WhatIfPreference -eq $false) {
+            Write-MigrateLogging -LogMessage "New AD Security Group created: $($OUPath)"
+        }
     }
 }
 
