@@ -21,7 +21,7 @@ $csvDir = "$($workingDir)\Csv\"     #location for csv files
 $logDir = "$($workingDir)\Log\"     #location for log files
 $xmlDir = "$($workingDir)\Xml\"     #location for xml files, don't know if we will use this
 
-#NOT my module, have to check it and make it consistence to the way I wright. Also I have to check where I found it to give credits to the original author!
+#NOT my module, have to check it and make it consistence to the way I write. Also I have to check where I found it to give credits to the original author!
 Function Initialize-Module ($m) {
     # If module is imported say that and do nothing
     if (Get-Module | Where-Object {$_.Name -eq $m}) {
