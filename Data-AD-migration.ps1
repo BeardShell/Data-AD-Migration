@@ -13,13 +13,13 @@ Import-Module NTFSSecurity -ErrorAction Stop
 
 #Set Initial Variables
 $workingDir = "D:\Migratie"         #Base directory. IMPORTANT: Don't add a trailing backslash (\) at the end!
-$ADSearchBase = ""                  #Use searchbase (example: OU=SecurityGroups,DC=contose,DC=com)
+$ADSearchBase = "" #Use searchbase (example: OU=SecurityGroups,DC=contose,DC=com)
 
 #--- DO NOT MAKE ANY ALTERATIONS TO THE SCRIPT BELOW THIS LINE ---#
 
-$csvDir = "$($workingDir)\Csv\"     #location for csv files
-$logDir = "$($workingDir)\Log\"     #location for log files
-$xmlDir = "$($workingDir)\Xml\"     #location for xml files, don't know if we will use this
+$csvDir = "$($workingDir)\Csv\"      #locatie voor de export CSV's
+$logDir = "$($workingDir)\Log\"      #locatie voor de logging
+$xmlDir = "$($workingDir)\Xml\"      #locatie voor XML bestanden
 
 #NOT my module, have to check it and make it consistence to the way I wright. Also I have to check where I found it to give credits to the original author!
 Function Initialize-Module ($m) {
@@ -104,38 +104,41 @@ Function Initialize-Migration {
 
 Function Get-PathWithSecurityGroup {
     [CmdletBinding()]
-    Param(
-        [Parameter(ValueFromPipeline=$false,Mandatory=$true)]
-        [string]$Path,
-        [int]$Depth=1
+    param(
+        [Parameter(ValueFromPipeline=$true,Mandatory=$true, Position=0)]
+        [string]$RootPath
+        #[int]$Depth=1
     )
-    try {
-        $DfsPath = Get-ChildItem -Path $Path -Directory
+    PROCESS {
+        try {
+            Write-Output $RootPath
+            $DfsPath = Get-ChildItem $RootPath
     
-        $directory = @()
-        $summaryArray = @()
+            $directory = @()
+            $summaryArray = @()
     
-        foreach ($path in $DfsPath) {
-            $directory += $path.FullName   
-        }
-        foreach ($subject in $directory) { 
-            foreach ($id in ((Get-Acl -Path $subject).Access | Where-Object {$_.IsInherited -eq $false})) {
-                if (($id.IdentityReference -like "LV\DT_*") -or ($id.IdentityReference -like "LV\B-*") -or ($id.IdentityReference -like "LV\N-*" -or ($id.IdentityReference -like "LV\P-*") -or ($id.IdentityReference -like "LV\AG-*"))) {
-                    $summary = [pscustomobject] @{
-                        DFSPath = $subject
-                        currentACL = $id.IdentityReference
-                        newACL = (New-MigrateReadGroup -SecurityGroup $id.IdentityReference)
+            foreach ($path in $DfsPath) {
+                $directory += $path.FullName   
+            }
+            foreach ($subject in $directory) { 
+                foreach ($id in ((Get-Acl -Path $subject).Access | Where-Object {$_.IsInherited -eq $false})) {
+                    if (($id.IdentityReference -like "LV\DT_*") -or ($id.IdentityReference -like "LV\B-*") -or ($id.IdentityReference -like "LV\N-*" -or ($id.IdentityReference -like "LV\P-*") -or ($id.IdentityReference -like "LV\AG-*"))) {
+                        $summary = [pscustomobject] @{
+                            DFSPath = $subject
+                            currentACL = $id.IdentityReference
+                            newACL = (New-MigrateReadGroup -SecurityGroup $id.IdentityReference)
+                        }
+                        $summaryArray += $summary
+                        $summary | Export-Csv -Path "$($csvDir)Securitygroups.csv" -Delimiter ";" -Append -NoTypeInformation
                     }
-                    $summaryArray += $summary
-                    $summary | Export-Csv -Path "$($csvDir)Securitygroups.csv" -Delimiter ";" -NoTypeInformation
                 }
             }
+        } catch {
+            Write-Error "Oops, my bad! " $PSItem
+            Write-Migrate Logging -LogMessage "Get-PathWithSecurityGroup() error occured: $($error)" -LogLevel Error
+        } finally {
+            #Write-Output "Status: Success. Check the output CSV ($($csvDir)Securitygroups.csv) if you're satisfied.`nIf required, run CmdLet New-ADMigrationGroups."
         }
-    } catch {
-        Write-Error "Oops, my bad! " $PSItem
-        Write-Migrate Logging -LogMessage "Get-PathWithSecurityGroup() error occured: $($error)" -LogLevel Error
-    } finally {
-        Write-Output "Status: Success. Check the output CSV ($($csvDir)Securitygroups.csv) if you're satisfied.`nIf required, run CmdLet New-ADMigrationGroups."
     }
 }
 
