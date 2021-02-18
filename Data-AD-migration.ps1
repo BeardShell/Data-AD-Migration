@@ -110,14 +110,15 @@ Function Get-PathWithSecurityGroup {
     )
     try {
         Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() gestart"
-        $folders = Get-ChildItem -Path $Path -Recurse $Recurse -Directory $Directory -Depth $Depth
+        $folders = Get-ChildItem -Path $Path -Recurse $Recurse -Directory $Directory -Depth $Depth | Select-Object FullName
         ForEach-Object $folder in $folders {
-            Get-NTFSAccess -Path $folder.FullName -ExcludeInherited | ForEach-Object {
-                if (($_.Account -like "LV\N-*") -or ($_.Account -like "LV\DT_*") -or ($_.Account -like "LV\B-*") -or ($_.Account -like "LV\P-*") -or ($_.Account -like "LV\AG_*")) {
-                    $NewSecGroup = New-MigrateReadGroup -SecurityGroup $_.Account
+            $NTFSGroups = Get-NTFSAccess -Path $folder.FullName -ExcludeInherited
+            foreach ($NTFSGroup in $NTFSGroups) {
+                if (($NTFSGroup.Account.AccountName -like "LV\N-*") -or ($NTFSGroup.Account.AccountName -like "LV\DT_*") -or ($NTFSGroup.Account.AccountName -like "LV\B-*") -or ($NTFSGroup.Account.AccountName -like "LV\P-*") -or ($NTFSGroup.Account.AccountName -like "LV\AG_*")) {
+                    $NewSecGroup = New-MigrateReadGroup -SecurityGroup $NTFSGroup.Account.AccountName
                     $MigrationObjects = [pscustomobject]@{
                         Fullname = $folder.FullName
-                        OldSecGroup = $_.Account
+                        OldSecGroup = $NTFSGroup.Account.AccountName
                         NewSecGroup = $NewSecGroup
                     }
                 }
@@ -126,7 +127,7 @@ Function Get-PathWithSecurityGroup {
             Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() succesvol uitgevoerd."
         }
     } catch {
-        Write-Error "Foutje!"
+        Write-Error "Foutje in Get-PathWithSecurityGroup()!" #Catch moet nog verder worden uitgewerkt
         Write-MigrateLogging -LogMessage "Get-PathWithSecurityGroup() fout opgetreden: $($error)" -LogLevel Error
     }
 }
