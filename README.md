@@ -1,5 +1,15 @@
 # Data-AD-Migration
  Script geschreven ter ondersteuning van Data en AD migraties
+ 
+Functie uitleg
+Set-MigrationBasics: Creeër mappenstructuur als deze niet bestaat. Nuttig om als eerste uit te voeren zodat alle overige functies werken.
+Initialize-Migration: Geef een SearchBase op van Active Directory en maak voor elke rechtengroep een CSV aan met alle members.
+Get-PathWithSecurityGroup: Geef een (DFS)pad op. Vervolgens worden alle niet erfbare rechten uitgelezen en er nieuwe READ groepen aangemaakt. 
+New-ADMigrationGroups: Creeër nieuwe AD groepen gebaseerd op de data uit Get-PathWithSecurityGroup.
+Set-MigrateNTFSRights: Geef de nieuwe AD groepen ReadAndExecute rechten op de bijbehorende DFS paden en alle onderliggende mappen en bestanden.
+Get-MigrationPreviousRights: Helpdesk functie. Als users klagen dat ze rechten hadden kan er worden nagegaan of deze rechten daadwerkelijk uitgedeeld waren.
+New-MigrateReadGroup: NIET zelf uitvoerbaar, is een hulpfunctie voor Get-PathWithSecurityGroup
+Write-MigrateLogging: NIET zelf uitvoerbaar, is een hulpfunctie voor alle andere functies t.b.v. logging
 
 MoSCoW Analyse
 
