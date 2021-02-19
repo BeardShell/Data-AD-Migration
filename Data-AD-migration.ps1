@@ -162,6 +162,30 @@ Function Set-MigrateNTFSRights {
     }
 }
 
+Function Get-MigrationPreviousRights {
+    [CmdLetBinding()]
+    Param (
+        [Parameter(Position=0)]
+        [string]$DfsPath,
+        [string]$CsvFile="$($csvDir)Securitygroups.csv"
+    )
+
+    PROCESS {
+        $file = Import-Csv $CsvFile -Delimiter ";"
+        foreach ($line in $file) {
+            if ((Compare-Object -ReferenceObject $DfsPath -DifferenceObject $line.DFSPath -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
+                $previousSecGroup = Import-Csv ($csvDir + (($line.currentACL).Substring(3)) + ".csv") -Delimiter ";"
+                Write-Output "Users/Groups with previous access to $($DfsPath):"
+                Write-Output "----------"
+                foreach ($user in $previousSecGroup) {
+                    Write-Output $user.Name
+                }
+                Write-Output "To restore access rights add chosen user to $($line.currentACL)"
+            }
+        }
+    }
+}
+
 Function Initialize-RollbackMigration {
     #revert migration, yet to be build
     return 0
