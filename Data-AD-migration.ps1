@@ -111,7 +111,6 @@ Function Get-PathWithSecurityGroup {
     )
     PROCESS {
         try {
-            Write-Output $RootPath
             $DfsPath = Get-ChildItem $RootPath
     
             $directory = @()
@@ -157,7 +156,10 @@ Function New-ADMigrationGroups {
 }
 
 Function Set-MigrateNTFSRights {
-    return 0
+    $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
+    foreach ($line in $csvFile) {
+        Add-NTFSAccess -Path $line.DFSPath -Account $line.newACL -AccessRights ReadAndExecute -AccessType Allow -AppliesTo ThisFolderSubfoldersAndFiles
+    }
 }
 
 Function Initialize-RollbackMigration {
