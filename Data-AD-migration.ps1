@@ -71,6 +71,15 @@ Function Set-MigrationBasics {
         Write-MigrateLogging -LogMessage "Directory $($xmlDir) created."
     }
 }
+
+#New Function names to unify it
+#Backup-MigrationStartingPoint (Initialize-Migration)
+#Export-MigrationSecurityGroups (Get-PathWithSecurityGroups)
+#Set-MigrationNTFSRights (Set-MigrateNTFSRights)
+#New-MigrationADGroups (New-ADMigrationGroups)
+#Initialize-MigrationRollback (Initialize-RollbackMigration)
+#Write-MigrationLogging (Write-MigrateLogging)
+#Convert-MigrationSecuritygroup (New-MigrateReadGroup)
 Function Initialize-Migration {
     [CmdLetBinding()]
     Param (
@@ -161,6 +170,19 @@ Function Set-MigrateNTFSRights {
         Add-NTFSAccess -Path $line.DFSPath -Account $line.newACL -AccessRights ReadAndExecute -AccessType Allow -AppliesTo ThisFolderSubfoldersAndFiles
     }
 }
+
+Function Clear-MigrationModifyGroups {
+    $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
+    foreach ($line in $csvFile) {
+        #Remove-ADGroupMembers from the modify groups
+    }
+}
+
+Function Add-MigrationReadOnlyMembers {
+    #Import users from modify groups to the newly created ReadOnly Groups
+}
+
+
 
 Function Get-MigrationPreviousRights {
     [CmdLetBinding()]
