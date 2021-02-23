@@ -4,9 +4,9 @@
 try {
     Import-Module ActiveDirectory -ErrorAction Stop
 } catch [System.IO.FileNotFoundException] {
-    Write-MigrateLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory failed! Try this code to fix the problem: Initialize-Module(ActiveDirectory)"
+    Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory failed! Try this code to fix the problem: Initialize-Module(ActiveDirectory)"
 } catch {
-    Write-MigrateLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory failed! $($error[-1])"
+    Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory failed! $($error[-1])"
 }
 
 Import-Module NTFSSecurity -ErrorAction Stop
@@ -53,34 +53,26 @@ Function Set-MigrationBasics {
     #Chech for directory existence and fix it if neccesary. 
     If (!(Test-Path $workingDir)) {
         New-Item -ItemType Directory -Path $workingDir
-        #No Write-MigrateLogging in this step, it will fail for not having the $logDir yet.
+        #No Write-MigrationLogging in this step, it will fail for not having the $logDir yet.
     }
 
     If (!(Test-Path $logDir)) {
         New-Item -ItemType Directory -Path $logDir
-        Write-MigrateLogging -LogMessage "Directory $($logDir) created."
+        Write-MigrationLogging -LogMessage "Directory $($logDir) created."
     }
 
     If (!(Test-Path $csvDir)) {
         New-Item -ItemType Directory -Path $csvDir
-        Write-MigrateLogging -LogMessage "Directory $($csvDir) created."
+        Write-MigrationLogging -LogMessage "Directory $($csvDir) created."
     }
 
     If (!(Test-Path $xmlDir)) {
         New-Item -ItemType Directory -Path $xmlDir
-        Write-MigrateLogging -LogMessage "Directory $($xmlDir) created."
+        Write-MigrationLogging -LogMessage "Directory $($xmlDir) created."
     }
 }
 
-#New Function names to unify it
-#Backup-MigrationStartingPoint (Initialize-Migration)
-#Export-MigrationSecurityGroups (Get-PathWithSecurityGroups)
-#Set-MigrationNTFSRights (Set-MigrateNTFSRights)
-#New-MigrationADGroups (New-ADMigrationGroups)
-#Initialize-MigrationRollback (Initialize-RollbackMigration)
-#Write-MigrationLogging (Write-MigrateLogging)
-#Convert-MigrationSecuritygroup (New-MigrateReadGroup)
-Function Initialize-Migration {
+Function Backup-MigrationStartingPoint {
     [CmdLetBinding()]
     Param (
         [Parameter(ValueFromPipeline=$true,Mandatory=$true)]
@@ -88,7 +80,7 @@ Function Initialize-Migration {
     )
     PROCESS {
         try {
-            Write-MigrateLogging -LogMessage "Initialize-Migration() started with SearchBase $($ADSearchBase)"
+            Write-MigrationLogging -LogMessage "Backup-MigrationStartingPoint() started with SearchBase $($ADSearchBase)"
             $ADGroups = Get-ADGroup -Filter * -SearchBase $ADSearchBase
             foreach ($ADGroup in $ADGroups) {
                 $CSV = ($ADGroup.Name) + ".csv"
@@ -100,18 +92,18 @@ Function Initialize-Migration {
                 }
                 $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
                 Write-Verbose "AD group members from $($ADGroup.Name): saved in $($csvDir)$($CSV)"
-                Write-MigrateLogging -LogMessage "AD group members from $($ADGroup.Name): saved in $($csvDir)$($CSV)"
+                Write-MigrationLogging -LogMessage "AD group members from $($ADGroup.Name): saved in $($csvDir)$($CSV)"
             }
         } Catch {
             Write-Error $error.Message
         } Finally {
-            Write-Output "Initialize-Migration() executed succesfully. See logging for full details"
-            Write-MigrateLogging -LogMessage "Initialize-Migration() executed succesfully"
+            Write-Output "Backup-MigrationStartingPoint() executed succesfully. See logging for full details"
+            Write-MigrationLogging -LogMessage "Backup-MigrationStartingPoint() executed succesfully"
         }
     }
 }
 
-Function Get-PathWithSecurityGroup {
+Function Export-MigrationSecurityGroups {
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(ValueFromPipeline=$true,Mandatory=$true, Position=0)]
@@ -134,7 +126,7 @@ Function Get-PathWithSecurityGroup {
                         $summary = [pscustomobject] @{
                             DFSPath = $subject
                             currentACL = $id.IdentityReference
-                            newACL = (New-MigrateReadGroup -SecurityGroup $id.IdentityReference)
+                            newACL = (Convert-MigrationSecuritygroup -SecurityGroup $id.IdentityReference)
                         }
                         $summaryArray += $summary
                         $summary | Export-Csv -Path "$($csvDir)Securitygroups.csv" -Delimiter ";" -Append -NoTypeInformation
@@ -143,12 +135,12 @@ Function Get-PathWithSecurityGroup {
             }
         } catch {
             Write-Error "Oops, my bad! " $PSItem
-            Write-Migrate Logging -LogMessage "Get-PathWithSecurityGroup() error occured: $($error)" -LogLevel Error
+            Write-Migrate Logging -LogMessage "Export-MigrationSecurityGroups() error occured: $($error)" -LogLevel Error
         }
     }
 }
 
-Function New-ADMigrationGroups {
+Function New-MigrationADGroups {
     [CmdletBinding(SupportsShouldProcess)]
     Param(
         [Parameter(ValueFromPipeline=$true,Mandatory=$false)]
@@ -159,7 +151,7 @@ Function New-ADMigrationGroups {
     foreach ($line in $csvFile) {
         New-ADGroup -DisplayName $line.newACL -GroupScope DomainLocal -GroupCategory Security -Name $line.newACL -SamAccountName $line.newACL -Path $OUPath -Description $Description -WhatIf
         if ($WhatIfPreference -eq $false) {
-            Write-MigrateLogging -LogMessage "New AD Security Group created: $($OUPath)"
+            Write-MigrationLogging -LogMessage "New AD Security Group created: $($OUPath)"
         }
     }
 }
@@ -185,7 +177,7 @@ Function Add-MigrationReadOnlyMembers {
     }
 }
 
-Function Set-MigrateNTFSRights {
+Function Set-MigrationNTFSRights {
     $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
     foreach ($line in $csvFile) {
         Add-NTFSAccess -Path $line.DFSPath -Account $line.newACL -AccessRights ReadAndExecute -AccessType Allow -AppliesTo ThisFolderSubfoldersAndFiles
@@ -233,11 +225,11 @@ Function Get-MigrationPreviousRights {
     }
 }
 
-Function Initialize-RollbackMigration {
+Function Initialize-MigrationRollback {
     #revert migration, yet to be build
     return 0
 }
-Function New-MigrateReadGroup {
+Function Convert-MigrationSecuritygroup {
     Param(
         [string]$SecurityGroup
     )
@@ -257,7 +249,7 @@ Function New-MigrateReadGroup {
 
     return $SecurityGroup.ToString()
 }
-Function Write-MigrateLogging {
+Function Write-MigrationLogging {
     #Function to write logging to keep a log of all that's happened.
     Param(
         [Parameter()]
