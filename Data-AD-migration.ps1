@@ -226,26 +226,39 @@ Function Get-MigrationPreviousRights {
 }
 
 Function Initialize-MigrationRollback {
-    [CmdLetBinding(SupportsShouldProcess)]
+    [CmdLetBinding(ConfirmImpact="Low",
+        SupportsShouldProcess=$true)]
     Param (
         [Parameter(Mandatory=$false)]
         [Switch]
         $All,
-        [Parameter(Mandatory=$false,Position=0)]
+        [Parameter(Mandatory=$false)]
         [string[]]$ModifyGroup,
-        [Parameter(Mandatory=$false,Position=0)]
-        [string]$FromFile
+        [Parameter(Mandatory=$false)]
+        [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
 
-    if ($All -eq $true) {
-        Write-Warning "All modify groups will be filled with members again. Please make sure this is your intended action."
-        $checkInput = Read-Host "Please type in I AM SURE to confirm you want to continue: "
-        if ($checkInput -eq "I AM SURE") {
-            $continueFlag = $true
-        } else {
-            Write-Error "Wrong confirmation responds. Script stopped"
+    $confirmationMessage = "I AM VERY SURE"
+    $continueFlag = $null
+
+    if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
+        if ($All -eq $true) {
+            Write-Warning "All modify groups will be filled with members again. Please make sure this is your intended action."
+            $checkInput = Read-Host "Please type in $($confirmationMessage) to confirm you want to continue: "
+            if ($checkInput -eq $confirmationMessage) {
+                $continueFlag = $true
+            } else {
+                Write-Error "Wrong confirmation message entered. Script stopped for safety reasons.`nIf you do want to perform a rollback run this script/function again."
+            }
         }
-    }
+        if (($continueFlag -eq $true) -or ($null -eq $continueFlag)) {
+            $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
+
+            foreach ($line in $CsvFileImported) {
+                Get-ADGroupMember 
+            }
+        }
+    } 
 }
 Function Convert-MigrationSecuritygroup {
     Param(
