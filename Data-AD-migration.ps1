@@ -164,6 +164,27 @@ Function New-ADMigrationGroups {
     }
 }
 
+Function Add-MigrationReadOnlyMembers {
+    #Import users from modify groups to the newly created ReadOnly Groups
+        [CmdLetBinding()]
+    Param (
+        [Parameter(Position=0)]
+        [string]$CsvFile="$($csvDir)Securitygroups.csv"
+    )
+
+    PROCESS {
+        $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
+
+        foreach ($line in $CsvFileImported) {
+            $currentACL = $line.currentACL.Substring(3)
+            $currentMembers = Get-ADGroupMember -Identity $currentACL
+            foreach ($aclMember in $currentMembers) {
+                Get-ADGroup -Identity $line.newACL | Add-ADGroupMember -Members $aclMember.SamAccountName -WhatIf
+            }
+        }
+    }
+}
+
 Function Set-MigrateNTFSRights {
     $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
     foreach ($line in $csvFile) {
@@ -187,9 +208,6 @@ Function Clear-MigrationModifyGroups {
     }
 }
 
-Function Add-MigrationReadOnlyMembers {
-    #Import users from modify groups to the newly created ReadOnly Groups
-}
 
 Function Get-MigrationPreviousRights {
     [CmdLetBinding()]
