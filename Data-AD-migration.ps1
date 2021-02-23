@@ -226,8 +226,26 @@ Function Get-MigrationPreviousRights {
 }
 
 Function Initialize-MigrationRollback {
-    #revert migration, yet to be build
-    return 0
+    [CmdLetBinding(SupportsShouldProcess)]
+    Param (
+        [Parameter(Mandatory=$false)]
+        [Switch]
+        $All,
+        [Parameter(Mandatory=$false,Position=0)]
+        [string[]]$ModifyGroup,
+        [Parameter(Mandatory=$false,Position=0)]
+        [string]$FromFile
+    )
+
+    if ($All -eq $true) {
+        Write-Warning "All modify groups will be filled with members again. Please make sure this is your intended action."
+        $checkInput = Read-Host "Please type in I AM SURE to confirm you want to continue: "
+        if ($checkInput -eq "I AM SURE") {
+            $continueFlag = $true
+        } else {
+            Write-Error "Wrong confirmation responds. Script stopped"
+        }
+    }
 }
 Function Convert-MigrationSecuritygroup {
     Param(
