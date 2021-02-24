@@ -71,7 +71,6 @@ Function Set-MigrationBasics {
         Write-MigrationLogging -LogMessage "Directory $($xmlDir) created."
     }
 }
-
 Function Backup-MigrationStartingPoint {
     [CmdLetBinding()]
     Param (
@@ -102,7 +101,6 @@ Function Backup-MigrationStartingPoint {
         }
     }
 }
-
 Function Export-MigrationSecurityGroups {
     [CmdletBinding(SupportsShouldProcess)]
     param(
@@ -139,7 +137,6 @@ Function Export-MigrationSecurityGroups {
         }
     }
 }
-
 Function New-MigrationADGroups {
     [CmdletBinding(SupportsShouldProcess)]
     Param(
@@ -159,7 +156,6 @@ Function New-MigrationADGroups {
         Write-Error "Module niet geladen?"
     }
 }
-
 Function Add-MigrationReadOnlyMembers {
     #Import users from modify groups to the newly created ReadOnly Groups
         [CmdLetBinding()]
@@ -180,14 +176,12 @@ Function Add-MigrationReadOnlyMembers {
         }
     }
 }
-
 Function Set-MigrationNTFSRights {
     $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
     foreach ($line in $csvFile) {
         Add-NTFSAccess -Path $line.DFSPath -Account $line.newACL -AccessRights ReadAndExecute -AccessType Allow -AppliesTo ThisFolderSubfoldersAndFiles
     }
 }
-
 Function Clear-MigrationModifyGroups {
     [CmdLetBinding()]
     Param (
@@ -203,8 +197,6 @@ Function Clear-MigrationModifyGroups {
         }
     }
 }
-
-
 Function Get-MigrationPreviousRights {
     [CmdLetBinding()]
     Param (
@@ -228,7 +220,6 @@ Function Get-MigrationPreviousRights {
         }
     }
 }
-
 Function Initialize-MigrationRollback {
     [CmdLetBinding(ConfirmImpact="Low",
         SupportsShouldProcess=$true)]
