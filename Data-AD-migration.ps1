@@ -147,12 +147,16 @@ Function New-MigrationADGroups {
         [string]$OUPath,
         [string]$Description="Created by New-ADMigration PowerShell function."
     )
-    $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
-    foreach ($line in $csvFile) {
-        New-ADGroup -DisplayName $line.newACL -GroupScope DomainLocal -GroupCategory Security -Name $line.newACL -SamAccountName $line.newACL -Path $OUPath -Description $Description -WhatIf
-        if ($WhatIfPreference -eq $false) {
-            Write-MigrationLogging -LogMessage "New AD Security Group created: $($OUPath)"
+    try {
+        $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
+        foreach ($line in $csvFile) {
+            if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
+                New-ADGroup -DisplayName $line.newACL -GroupScope DomainLocal -GroupCategory Security -Name $line.newACL -SamAccountName $line.newACL -Path $OUPath -Description $Description -WhatIf
+                Write-MigrationLogging -LogMessage "New AD Security Group created: $($OUPath)"
+            }
         }
+    } catch [System.IO.FileNotFoundException] {
+        Write-Error "Module niet geladen?"
     }
 }
 
@@ -255,7 +259,7 @@ Function Initialize-MigrationRollback {
             $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
 
             foreach ($line in $CsvFileImported) {
-                Get-ADGroupMember 
+                Get-ADGroupMember -Identity $line.newACL | ForEach-Object {Add-ADGroupMember -Identity ($line.currentACL).Substring(3) -Members $_.SamAccountName -WhatIf}
             }
         }
     } 
