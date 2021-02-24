@@ -18,7 +18,7 @@
 # - Modularize more for broader use
 # - Add more try/catch uses
 # - Add proper Begin, Process, End codeblocks
-# - Add ShouldProcess() support like it is supposed to in all applied functions
+# - Add ShouldProcess() support like it is supposed to in all applicable functions
 
 # Test bit for module import
 try {
