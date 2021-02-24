@@ -1,4 +1,15 @@
 # Data AD Migration Tool
+# Written by Stefan a.k.a. BeardShell
+# Feel free to use any of these functions for your own use as you see fit (see license)
+# Always keep the original author (me) mentioned if you use any of this
+# Credits given where credit is due
+#
+# Version 0.1
+# Not tested in production yet
+# Creation date: 13-02-2021
+# For the latest modifications on this script see: https://github.com/BeardShell/Data-AD-Migration
+#
+# Some lines in this script have the sole purpose to serve the customer I wrote this for. Edit those lines accordingly.
 
 # Test bit for module import
 try {
