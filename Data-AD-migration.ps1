@@ -10,6 +10,15 @@
 # For the latest modifications on this script see: https://github.com/BeardShell/Data-AD-Migration
 #
 # Some lines in this script have the sole purpose to serve the customer I wrote this for. Edit those lines accordingly.
+#
+# Todo-list
+# ---------
+# - Add more Write-MigrationLogging content in the various functions
+# - Add decent synopsis (help information)
+# - Modularize more for broader use
+# - Add more try/catch uses
+# - Add proper Begin, Process, End codeblocks
+# - Add ShouldProcess() support like it is supposed to in all applied functions
 
 # Test bit for module import
 try {
