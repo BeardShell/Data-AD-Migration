@@ -125,12 +125,20 @@ Function Export-MigrationSecurityGroups {
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(ValueFromPipeline=$true,Mandatory=$true, Position=0)]
-        [string]$RootPath
-        #[int]$Depth=1
+        [string]$RootPath,
+        [int]$Depth=0
     )
     PROCESS {
         try {
-            $DfsPath = Get-ChildItem $RootPath
+            $DfsPath = Get-ChildItem $RootPath -Directory -Depth $Depth
+
+            Write-Verbose $RootPath
+            Write-Verbose $Depth
+
+            if (Test-Path("$($csvDir)Securitygroups.csv")) {
+                Write-Warning "Path $($csvDir)Securitygroups.csv already exists!`n`nThe entire script depends on this file. Please back-up the current file (rename it or copy it) and remove the Securitygroups.csv"
+                Write-Error "Overwriting the Securitygroups.csv file is not allowed.`nPlease remember that a rollback scenario is not possible when this file is incorrect or missing."
+            }
     
             $directory = @()
             $summaryArray = @()
@@ -138,18 +146,25 @@ Function Export-MigrationSecurityGroups {
             foreach ($path in $DfsPath) {
                 $directory += $path.FullName   
             }
+
             foreach ($subject in $directory) { 
+                Write-Verbose "Subject $($subject)"
                 foreach ($id in ((Get-Acl -Path $subject).Access | Where-Object {$_.IsInherited -eq $false})) {
                     if (($id.IdentityReference -like "LV\DT_*") -or ($id.IdentityReference -like "LV\B-*") -or ($id.IdentityReference -like "LV\N-*" -or ($id.IdentityReference -like "LV\P-*") -or ($id.IdentityReference -like "LV\AG-*"))) {
                         $summary = [pscustomobject] @{
                             DFSPath = $subject
-                            currentACL = $id.IdentityReference
-                            newACL = (Convert-MigrationSecuritygroup -SecurityGroup $id.IdentityReference)
+                            modifyACL = $id.IdentityReference
+                            readonlyACL = (Convert-MigrationSecuritygroup -SecurityGroup $id.IdentityReference)
                         }
                         $summaryArray += $summary
                         $summary | Export-Csv -Path "$($csvDir)Securitygroups.csv" -Delimiter ";" -Append -NoTypeInformation
                     }
                 }
+            }
+            if (Test-Path("$($csvDir)Securitygroups.csv")) {
+                Write-Output "The file $($csvDir)Securitygroups.csv is succesfully created. Back-up this file NOW!"
+                Write-Output "The SecurityGroups.csv file is the key component to perform other functions and most importantly to launch a rollback scenario."
+                Write-Output "Upon losing this file all information is lost and has to be restored manually based on the logging created."
             }
         } catch {
             Write-Error "Oops, my bad! " $PSItem
@@ -168,7 +183,7 @@ Function New-MigrationADGroups {
         $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
         foreach ($line in $csvFile) {
             if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
-                New-ADGroup -DisplayName $line.newACL -GroupScope DomainLocal -GroupCategory Security -Name $line.newACL -SamAccountName $line.newACL -Path $OUPath -Description $Description -WhatIf
+                New-ADGroup -DisplayName $line.readonlyACL -GroupScope DomainLocal -GroupCategory Security -Name $line.readonlyACL -SamAccountName $line.readonlyACL -Path $OUPath -Description $Description -WhatIf
                 Write-MigrationLogging -LogMessage "New AD Security Group created: $($OUPath)"
             }
         }
@@ -188,10 +203,10 @@ Function Add-MigrationReadOnlyMembers {
         $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
 
         foreach ($line in $CsvFileImported) {
-            $currentACL = $line.currentACL.Substring(3)
-            $currentMembers = Get-ADGroupMember -Identity $currentACL
+            $modifyACL = $line.modifyACL.Substring(3)
+            $currentMembers = Get-ADGroupMember -Identity $modifyACL
             foreach ($aclMember in $currentMembers) {
-                Get-ADGroup -Identity $line.newACL | Add-ADGroupMember -Members $aclMember.SamAccountName -WhatIf
+                Get-ADGroup -Identity $line.readonlyACL | Add-ADGroupMember -Members $aclMember.SamAccountName -WhatIf
             }
         }
     }
@@ -199,7 +214,7 @@ Function Add-MigrationReadOnlyMembers {
 Function Set-MigrationNTFSRights {
     $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
     foreach ($line in $csvFile) {
-        Add-NTFSAccess -Path $line.DFSPath -Account $line.newACL -AccessRights ReadAndExecute -AccessType Allow -AppliesTo ThisFolderSubfoldersAndFiles
+        Add-NTFSAccess -Path $line.DFSPath -Account $line.readonlyACL -AccessRights ReadAndExecute -AccessType Allow -AppliesTo ThisFolderSubfoldersAndFiles
     }
 }
 Function Clear-MigrationModifyGroups {
@@ -212,8 +227,8 @@ Function Clear-MigrationModifyGroups {
         $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
 
         foreach ($line in $CsvFileImported) {
-            $currentACL = $line.currentACL.Substring(3)
-            Get-ADGroupMember $currentACL | ForEach-Object { Remove-ADGroupMember -Identity $currentACL -Members $_.SamAccountName -Confirm:$false -WhatIf }
+            $modifyACL = $line.modifyACL.Substring(3)
+            Get-ADGroupMember $modifyACL | ForEach-Object { Remove-ADGroupMember -Identity $modifyACL -Members $_.SamAccountName -Confirm:$false -WhatIf }
         }
     }
 }
@@ -229,13 +244,13 @@ Function Get-MigrationPreviousRights {
         $file = Import-Csv $CsvFile -Delimiter ";"
         foreach ($line in $file) {
             if ((Compare-Object -ReferenceObject $DfsPath -DifferenceObject $line.DFSPath -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
-                $previousSecGroup = Import-Csv ($csvDir + (($line.currentACL).Substring(3)) + ".csv") -Delimiter ";"
+                $previousSecGroup = Import-Csv ($csvDir + (($line.modifyACL).Substring(3)) + ".csv") -Delimiter ";"
                 Write-Output "Users/Groups with previous access to $($DfsPath):"
                 Write-Output "----------"
                 foreach ($user in $previousSecGroup) {
                     Write-Output $user.Name
                 }
-                Write-Output "To restore access rights add chosen user to $($line.currentACL)"
+                Write-Output "To restore access rights add chosen user to $($line.modifyACL)"
             }
         }
     }
@@ -280,10 +295,10 @@ Function Initialize-MigrationRollback {
             if ($null -ne $ModifyGroup) {
                 foreach ($groupItem in $ModifyGroup) {
                     foreach ($line in $CsvFileImported) {
-                        if ($groupItem -notmatch "LV\*") {
-                            $compareObject = ($line.currentACL).Substring(3)
+                        if ($groupItem -notmatch "LV\\") {                      # double slash \\ used, one for the character slash and one for escaping the slash
+                            $compareObject = ($line.modifyACL).Substring(3)
                         } else {
-                            $compareObject = $line.currentACL
+                            $compareObject = $line.modifyACL
                         }
                         
                         if ((Compare-Object -ReferenceObject $groupItem -DifferenceObject $compareObject -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
@@ -300,7 +315,7 @@ Function Initialize-MigrationRollback {
             }
             if (($continueFlag -eq $true) -or ($null -eq $continueFlag)) {
                 foreach ($line in $CsvFileImported) {
-                    #Get-ADGroupMember -Identity $line.newACL | ForEach-Object {Add-ADGroupMember -Identity ($line.currentACL).Substring(3) -Members $_.SamAccountName -WhatIf}
+                    #Get-ADGroupMember -Identity $line.readonlyACL | ForEach-Object {Add-ADGroupMember -Identity ($line.modifyACL).Substring(3) -Members $_.SamAccountName -WhatIf}
                 }
             }
         } 
