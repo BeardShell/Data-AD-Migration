@@ -257,40 +257,54 @@ Function Initialize-MigrationRollback {
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
 
-    $confirmationMessage = "I AM VERY SURE"
-    $continueFlag = $null
+    PROCESS {
 
-    if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
-        if ($All -eq $true) {
-            Write-Warning "All modify groups will be filled with members again. Please make sure this is your intended action."
-            $checkInput = Read-Host "Please type in $($confirmationMessage) to confirm you want to continue"
-            if ($checkInput -eq $confirmationMessage) {
-                $continueFlag = $true
-            } else {
-                Write-Error "Wrong confirmation message entered. Script stopped for safety reasons.`nIf you do want to perform a rollback run this script/function again."
-            }
-            #-All is chosen, no need to read anything else, so we don't want to run anything else
-            $ModifyGroup = $null
-            $Path = $null
-            $ReadGroup = $null
-        }
-        if ($null -ne $ModifyGroup) {
-            Write-Output "Run ModifyGroup commands"
-        }
-        if ($null -ne $Path) {
-            Write-Output "Run Path commands"
-        }
-        if ($null -ne $ReadGroup) {
-            Write-Output "Run Readgroup commands"
-        }
-        if (($continueFlag -eq $true) -or ($null -eq $continueFlag)) {
-            $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
+        $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
+        $confirmationMessage = "I AM VERY SURE"
+        $continueFlag = $null
 
-            foreach ($line in $CsvFileImported) {
-                #Get-ADGroupMember -Identity $line.newACL | ForEach-Object {Add-ADGroupMember -Identity ($line.currentACL).Substring(3) -Members $_.SamAccountName -WhatIf}
+        if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
+            if ($All -eq $true) {
+                Write-Warning "All modify groups will be filled with members again. Please make sure this is your intended action."
+                $checkInput = Read-Host "Please type in $($confirmationMessage) to confirm you want to continue"
+                if ($checkInput -eq $confirmationMessage) {
+                    $continueFlag = $true
+                } else {
+                    Write-Error "Wrong confirmation message entered. Script stopped for safety reasons.`nIf you do want to perform a rollback run this script/function again."
+                }
+                #-All is chosen, no need to read anything else, so we don't want to run anything else
+                $ModifyGroup = $null
+                $Path = $null
+                $ReadGroup = $null
             }
-        }
-    } 
+            if ($null -ne $ModifyGroup) {
+                foreach ($groupItem in $ModifyGroup) {
+                    foreach ($line in $CsvFileImported) {
+                        if ($groupItem -notmatch "LV\*") {
+                            $compareObject = ($line.currentACL).Substring(3)
+                        } else {
+                            $compareObject = $line.currentACL
+                        }
+                        
+                        if ((Compare-Object -ReferenceObject $groupItem -DifferenceObject $compareObject -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
+                            Write-Output $line
+                        }
+                    }
+                }
+            }
+            if ($null -ne $Path) {
+                Write-Output "Run Path commands"
+            }
+            if ($null -ne $ReadGroup) {
+                Write-Output "Run Readgroup commands"
+            }
+            if (($continueFlag -eq $true) -or ($null -eq $continueFlag)) {
+                foreach ($line in $CsvFileImported) {
+                    #Get-ADGroupMember -Identity $line.newACL | ForEach-Object {Add-ADGroupMember -Identity ($line.currentACL).Substring(3) -Members $_.SamAccountName -WhatIf}
+                }
+            }
+        } 
+    }
 }
 Function Convert-MigrationSecuritygroup {
     Param(
