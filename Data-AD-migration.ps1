@@ -127,6 +127,27 @@ Function Backup-MigrationStartingPoint {
         }
     }
 }
+
+Function Backup-MigrationSecurityGroup {
+    Param (
+        [string]$SecurityGroup
+    )
+
+    PROCESS {
+        try {
+            $CSV = ($SecurityGroup) + ".csv"
+            $ADGroupMembers = Get-ADGroupMember -Identity $SecurityGroup | ForEach-Object {
+                [pscustomobject]@{
+                    GroupName = $ADGroup.Name
+                    Name = $_.SamAccountName
+                }
+            }
+            $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
+        } catch {
+            Write-Error $error[-1]
+        }
+    }
+}
 Function Export-MigrationSecurityGroups {
     [CmdletBinding(SupportsShouldProcess)]
     param(
@@ -136,14 +157,18 @@ Function Export-MigrationSecurityGroups {
     )
     PROCESS {
         try {
-            $DfsPath = Get-ChildItem $RootPath -Directory -Depth $Depth
-
-            Write-Verbose $RootPath
-            Write-Verbose $Depth
+            if ($Depth -eq 0) {
+                $DfsPath = Get-ChildItem $RootPath -Directory
+                Write-Verbose "Running without -Depth"
+            } else {
+                $DfsPath = Get-ChildItem $RootPath -Directory-Depth $Depth
+                Write-Verbose "Running with -Depth"
+            }
 
             if (Test-Path("$($csvDir)Securitygroups.csv")) {
                 Write-Warning "Path $($csvDir)Securitygroups.csv already exists!`n`nThe entire script depends on this file. Please back-up the current file (rename it or copy it) and remove the Securitygroups.csv"
                 Write-Error "Overwriting the Securitygroups.csv file is not allowed.`nPlease remember that a rollback scenario is not possible when this file is incorrect or missing."
+                Break;
             }
     
             $directory = @()
@@ -154,9 +179,12 @@ Function Export-MigrationSecurityGroups {
             }
 
             foreach ($subject in $directory) { 
-                Write-Verbose "Subject $($subject)"
+                Write-Verbose "Processing $($subject)"
                 foreach ($id in ((Get-Acl -Path $subject).Access | Where-Object {$_.IsInherited -eq $false})) {
-                    if (($id.IdentityReference -like "LV\DT_*") -or ($id.IdentityReference -like "LV\B-*") -or ($id.IdentityReference -like "LV\N-*" -or ($id.IdentityReference -like "LV\P-*") -or ($id.IdentityReference -like "LV\AG-*"))) {
+                    if (($id.IdentityReference -like "LV\DT_*") -or ($id.IdentityReference -like "LV\B-*") -or ($id.IdentityReference -like "LV\N-*" -or ($id.IdentityReference -like "LV\P-*") -or ($id.IdentityReference -like "LV\AG-*") -or ($id.IdentityReference -like "LV\l.wijz*"))) {
+                        $SecurityGroup = ($id.IdentityReference).ToString()
+                        $securityGroup = $SecurityGroup.Substring(3)
+                        Backup-MigrationSecurityGroup -SecurityGroup $SecurityGroup
                         $summary = [pscustomobject] @{
                             DFSPath = $subject
                             modifyACL = $id.IdentityReference
@@ -380,7 +408,9 @@ Function Convert-MigrationSecuritygroup {
     Param(
         [string]$SecurityGroup
     )
-
+    if ($SecurityGroup -match "l.wijz") {
+        return $SecurityGroup.ToString()
+    }
     if ($SecurityGroup -notmatch "DT_") {
         $SecurityGroupSplit = $SecurityGroup -split ("\\")
         $SecurityGroup = $SecurityGroupSplit[1]
