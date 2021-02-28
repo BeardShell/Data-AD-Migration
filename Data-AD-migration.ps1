@@ -29,7 +29,13 @@ try {
     Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory failed! $($error[-1])"
 }
 
-Import-Module NTFSSecurity -ErrorAction Stop
+try {
+    Import-Module NTFSSecurity -ErrorAction Stop
+} catch [System.IO.FileNotFoundException] {
+    Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module NTFSSecurity failed! Try this code to fix the problem: Initialize-Module(ActiveDirectory)"
+} catch {
+    Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module NTFSSecurity failed! $($error[-1])"
+}
 
 #Set Initial Variables
 $workingDir = "D:\Migratie"         #Base directory. IMPORTANT: Don't add a trailing backslash (\) at the end!
@@ -39,7 +45,7 @@ $ADSearchBase = ""                  #Use searchbase (example: OU=SecurityGroups,
 
 $csvDir = "$($workingDir)\Csv\"     #location for csv files
 $logDir = "$($workingDir)\Log\"     #location for log files
-$xmlDir = "$($workingDir)\Xml\"     #location for xml files, don't know if we will use this
+#$xmlDir = "$($workingDir)\Xml\"     #location for xml files, don't know if we will use this
 
 #NOT my module, have to check it and make it consistence to the way I write. Also I have to check where I found it to give credits to the original author!
 Function Initialize-Module ($m) {
@@ -177,15 +183,21 @@ Function New-MigrationADGroups {
     Param(
         [Parameter(ValueFromPipeline=$true,Mandatory=$false)]
         [string]$OUPath,
-        [string]$Description="Created by New-ADMigration PowerShell function."
+        [string]$Description="Created by New-ADMigration PowerShell function.",
+        [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
     try {
-        $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
-        foreach ($line in $csvFile) {
-            if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
-                New-ADGroup -DisplayName $line.readonlyACL -GroupScope DomainLocal -GroupCategory Security -Name $line.readonlyACL -SamAccountName $line.readonlyACL -Path $OUPath -Description $Description -WhatIf
-                Write-MigrationLogging -LogMessage "New AD Security Group created: $($OUPath)"
+        if (Test-Path $CsvFile) {
+            $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
+            foreach ($line in $csvFile) {
+                if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
+                    New-ADGroup -DisplayName $line.readonlyACL -GroupScope DomainLocal -GroupCategory Security -Name $line.readonlyACL -SamAccountName $line.readonlyACL -Path $OUPath -Description $Description -WhatIf
+                    Write-MigrationLogging -LogMessage "New AD Security Group created: $($OUPath)"
+                }
             }
+        } else {
+            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
+            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
         }
     } catch [System.IO.FileNotFoundException] {
         Write-Error "Module niet geladen?"
@@ -200,35 +212,69 @@ Function Add-MigrationReadOnlyMembers {
     )
 
     PROCESS {
-        $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
+        if (Test-Path $CsvFile) {
+            $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
 
-        foreach ($line in $CsvFileImported) {
-            $modifyACL = $line.modifyACL.Substring(3)
-            $currentMembers = Get-ADGroupMember -Identity $modifyACL
-            foreach ($aclMember in $currentMembers) {
-                Get-ADGroup -Identity $line.readonlyACL | Add-ADGroupMember -Members $aclMember.SamAccountName -WhatIf
+            foreach ($line in $CsvFileImported) {
+                $modifyACL = $line.modifyACL.Substring(3)
+                $currentMembers = Get-ADGroupMember -Identity $modifyACL
+                foreach ($aclMember in $currentMembers) {
+                    Get-ADGroup -Identity $line.readonlyACL | Add-ADGroupMember -Members $aclMember.SamAccountName -WhatIf
+                }
             }
+        } else {
+            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
+            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
         }
     }
 }
 Function Set-MigrationNTFSRights {
-    $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
-    foreach ($line in $csvFile) {
-        Add-NTFSAccess -Path $line.DFSPath -Account $line.readonlyACL -AccessRights ReadAndExecute -AccessType Allow -AppliesTo ThisFolderSubfoldersAndFiles
-    }
-}
-Function Clear-MigrationModifyGroups {
     [CmdLetBinding()]
     Param (
         [Parameter(Position=0)]
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
     PROCESS {
-        $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
+        try {
+            if (Test-Path $CsvFile) {
+                $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
+                Write-Output $?
+                foreach ($line in $csvFile) {
+                    Add-NTFSAccess -Path $line.DFSPath -Account $line.readonlyACL -AccessRights ReadAndExecute -AccessType Allow -AppliesTo ThisFolderSubfoldersAndFiles -ErrorAction SilentlyContinue
+                    if ($? -eq $true) {
+                        Write-MigrationLogging -LogMessage "NTFS Rights (ReadAndExecute) set to $($line.readonlyACL)"
+                        Write-Output "NTFS Rights (ReadAndExecute) set to $($line.readonlyACL)"
+                    } else {
+                        Write-MigrationLogging -LogLevel Error -LogMessage "Error when settings NTFS rights to $($line.readonlyACL) (Error: $($error[-1])"
+                        Write-Warning "Error when settings NTFS rights to $($line.readonlyACL) (Error: $($error[-1])"
+                    }
+                }
+            } else {
+                Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
+                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
+            }
+        } catch {
+            Write-Error $error[-1]
+        }
+    }
+}
+Function Clear-MigrationModifyGroups {
+    [CmdLetBinding()]
+    Param (
+        [Parameter]
+        [string]$CsvFile="$($csvDir)Securitygroups.csv"
+    )
+    PROCESS {
+        if (Test-Path $CsvFile) {
+            $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
 
-        foreach ($line in $CsvFileImported) {
-            $modifyACL = $line.modifyACL.Substring(3)
-            Get-ADGroupMember $modifyACL | ForEach-Object { Remove-ADGroupMember -Identity $modifyACL -Members $_.SamAccountName -Confirm:$false -WhatIf }
+            foreach ($line in $CsvFileImported) {
+                $modifyACL = $line.modifyACL.Substring(3)
+                Get-ADGroupMember $modifyACL | ForEach-Object { Remove-ADGroupMember -Identity $modifyACL -Members $_.SamAccountName -Confirm:$false -WhatIf }
+            }
+        } else {
+            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
+            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
         }
     }
 }
@@ -241,17 +287,22 @@ Function Get-MigrationPreviousRights {
     )
 
     PROCESS {
-        $file = Import-Csv $CsvFile -Delimiter ";"
-        foreach ($line in $file) {
-            if ((Compare-Object -ReferenceObject $DfsPath -DifferenceObject $line.DFSPath -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
-                $previousSecGroup = Import-Csv ($csvDir + (($line.modifyACL).Substring(3)) + ".csv") -Delimiter ";"
-                Write-Output "Users/Groups with previous access to $($DfsPath):"
-                Write-Output "----------"
-                foreach ($user in $previousSecGroup) {
-                    Write-Output $user.Name
+        if (Test-Path $CsvFile) {
+            $file = Import-Csv $CsvFile -Delimiter ";"
+            foreach ($line in $file) {
+                if ((Compare-Object -ReferenceObject $DfsPath -DifferenceObject $line.DFSPath -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
+                    $previousSecGroup = Import-Csv ($csvDir + (($line.modifyACL).Substring(3)) + ".csv") -Delimiter ";"
+                    Write-Output "Users/Groups with previous access to $($DfsPath):"
+                    Write-Output "----------"
+                    foreach ($user in $previousSecGroup) {
+                        Write-Output $user.Name
+                    }
+                    Write-Output "To restore access rights add chosen user to $($line.modifyACL)"
                 }
-                Write-Output "To restore access rights add chosen user to $($line.modifyACL)"
             }
+        } else {
+            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
+            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
         }
     }
 }
@@ -273,52 +324,56 @@ Function Initialize-MigrationRollback {
     )
 
     PROCESS {
+        if (Test-Path $CsvFile) {
+            $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
+            $confirmationMessage = "I AM VERY SURE"
+            $continueFlag = $null
 
-        $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
-        $confirmationMessage = "I AM VERY SURE"
-        $continueFlag = $null
-
-        if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
-            if ($All -eq $true) {
-                Write-Warning "All modify groups will be filled with members again. Please make sure this is your intended action."
-                $checkInput = Read-Host "Please type in $($confirmationMessage) to confirm you want to continue"
-                if ($checkInput -eq $confirmationMessage) {
-                    $continueFlag = $true
-                } else {
-                    Write-Error "Wrong confirmation message entered. Script stopped for safety reasons.`nIf you do want to perform a rollback run this script/function again."
+            if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
+                if ($All -eq $true) {
+                    Write-Warning "All modify groups will be filled with members again. Please make sure this is your intended action."
+                    $checkInput = Read-Host "Please type in $($confirmationMessage) to confirm you want to continue"
+                    if ($checkInput -eq $confirmationMessage) {
+                        $continueFlag = $true
+                    } else {
+                        Write-Error "Wrong confirmation message entered. Script stopped for safety reasons.`nIf you do want to perform a rollback run this script/function again."
+                    }
+                    #-All is chosen, no need to read anything else, so we don't want to run anything else
+                    $ModifyGroup = $null
+                    $Path = $null
+                    $ReadGroup = $null
                 }
-                #-All is chosen, no need to read anything else, so we don't want to run anything else
-                $ModifyGroup = $null
-                $Path = $null
-                $ReadGroup = $null
-            }
-            if ($null -ne $ModifyGroup) {
-                foreach ($groupItem in $ModifyGroup) {
-                    foreach ($line in $CsvFileImported) {
-                        if ($groupItem -notmatch "LV\\") {                      # double slash \\ used, one for the character slash and one for escaping the slash
-                            $compareObject = ($line.modifyACL).Substring(3)
-                        } else {
-                            $compareObject = $line.modifyACL
-                        }
-                        
-                        if ((Compare-Object -ReferenceObject $groupItem -DifferenceObject $compareObject -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
-                            Write-Output $line
+                if ($null -ne $ModifyGroup) {
+                    foreach ($groupItem in $ModifyGroup) {
+                        foreach ($line in $CsvFileImported) {
+                            if ($groupItem -notmatch "LV\\") {                      # double slash \\ used, one for the character slash and one for escaping the slash
+                                $compareObject = ($line.modifyACL).Substring(3)
+                            } else {
+                                $compareObject = $line.modifyACL
+                            }
+                            
+                            if ((Compare-Object -ReferenceObject $groupItem -DifferenceObject $compareObject -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
+                                Write-Output $line
+                            }
                         }
                     }
                 }
-            }
-            if ($null -ne $Path) {
-                Write-Output "Run Path commands"
-            }
-            if ($null -ne $ReadGroup) {
-                Write-Output "Run Readgroup commands"
-            }
-            if (($continueFlag -eq $true) -or ($null -eq $continueFlag)) {
-                foreach ($line in $CsvFileImported) {
-                    #Get-ADGroupMember -Identity $line.readonlyACL | ForEach-Object {Add-ADGroupMember -Identity ($line.modifyACL).Substring(3) -Members $_.SamAccountName -WhatIf}
+                if ($null -ne $Path) {
+                    Write-Output "Run Path commands"
                 }
-            }
-        } 
+                if ($null -ne $ReadGroup) {
+                    Write-Output "Run Readgroup commands"
+                }
+                if (($continueFlag -eq $true) -or ($null -eq $continueFlag)) {
+                    foreach ($line in $CsvFileImported) {
+                        #Get-ADGroupMember -Identity $line.readonlyACL | ForEach-Object {Add-ADGroupMember -Identity ($line.modifyACL).Substring(3) -Members $_.SamAccountName -WhatIf}
+                    }
+                }
+            } 
+        } else {
+            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
+            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
+        }
     }
 }
 Function Convert-MigrationSecuritygroup {
