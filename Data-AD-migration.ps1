@@ -214,21 +214,23 @@ Function New-MigrationADGroups {
         [string]$Description="Created by New-ADMigration PowerShell function.",
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
-    try {
-        if (Test-Path $CsvFile) {
-            $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
-            foreach ($line in $csvFile) {
-                if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
-                    New-ADGroup -DisplayName $line.readonlyACL -GroupScope DomainLocal -GroupCategory Security -Name $line.readonlyACL -SamAccountName $line.readonlyACL -Path $OUPath -Description $Description -WhatIf
-                    Write-MigrationLogging -LogMessage "New AD Security Group created: $($OUPath)"
+    if ($PSCmdLet.ShouldProcess("AD Create new security group", "New-ADGroup")) {
+        try {
+            if (Test-Path $CsvFile) {
+                $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
+                foreach ($line in $csvFile) {
+                    if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
+                        New-ADGroup -DisplayName $line.readonlyACL -GroupScope DomainLocal -GroupCategory Security -Name $line.readonlyACL -SamAccountName $line.readonlyACL -Path $OUPath -Description $Description -WhatIf
+                        Write-MigrationLogging -LogMessage "New AD Security Group created: $($OUPath)"
+                    }
                 }
+            } else {
+                Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
+                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
             }
-        } else {
-            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
-            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
+        } catch [System.IO.FileNotFoundException] {
+            Write-Error "Module niet geladen?"
         }
-    } catch [System.IO.FileNotFoundException] {
-        Write-Error "Module niet geladen?"
     }
 }
 Function Add-MigrationReadOnlyMembers {
@@ -287,22 +289,25 @@ Function Set-MigrationNTFSRights {
     }
 }
 Function Clear-MigrationModifyGroups {
-    [CmdLetBinding()]
+    [CmdLetBinding(SupportsShouldProcess=$true)]
     Param (
         [Parameter]
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
-    PROCESS {
-        if (Test-Path $CsvFile) {
-            $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
 
-            foreach ($line in $CsvFileImported) {
-                $modifyACL = $line.modifyACL.Substring(3)
-                Get-ADGroupMember $modifyACL | ForEach-Object { Remove-ADGroupMember -Identity $modifyACL -Members $_.SamAccountName -Confirm:$false -WhatIf }
+    PROCESS {
+        if ($PSCmdLet.ShouldProcess("AD Clear/Empty Security Group", "Remove-ADGroupMember")) {
+            if (Test-Path $CsvFile) {
+                $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
+
+                foreach ($line in $CsvFileImported) {
+                    $modifyACL = $line.modifyACL.Substring(3)
+                    Get-ADGroupMember $modifyACL | ForEach-Object { Remove-ADGroupMember -Identity $modifyACL -Members $_.SamAccountName -Confirm:$false -WhatIf }
+                }
+            } else {
+                Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
+                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
             }
-        } else {
-            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
-            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
         }
     }
 }
