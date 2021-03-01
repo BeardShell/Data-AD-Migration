@@ -268,7 +268,7 @@ Function Export-MigrationSecurityGroups {
 Function New-MigrationADGroups {
     [CmdletBinding(SupportsShouldProcess)]
     Param(
-        [Parameter(ValueFromPipeline=$true,Mandatory=$false)]
+        [Parameter()]
         [string]$OUPath,
         [string]$Description="Created by New-ADMigration PowerShell function.",
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
@@ -280,10 +280,12 @@ Function New-MigrationADGroups {
                 foreach ($line in $csvFileImport) {
                     if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
                         $groupCheck = Get-ADGroup -LDAPFilter "(SAMAccountName=$($line.readonlyACL))"
-                        if ($groupCheck -eq $null) {
+                        if ($null -eq $groupCheck) {
                             New-ADGroup -DisplayName $line.readonlyACL -GroupScope DomainLocal -GroupCategory Security -Name $line.readonlyACL -SamAccountName $line.readonlyACL -Path $OUPath -Description $Description -ErrorAction SilentlyContinue
+                            Write-Output "New AD Security Group ($($line.readonlyACL)) created in path: $($OUPath)"
                             Write-MigrationLogging -LogMessage "New AD Security Group ($($line.readonlyACL)) created in path: $($OUPath)"
                         } else {
+                            Write-Output "AD Group $($line.readonlyACL) already exists. Skipped creating new group. This message can safely be ignored."
                             Write-MigrationLogging -LogMessage "AD Group $($line.readonlyACL) already exists. Skipped creating new group. This log message can safely be ignored."
                         }
                     }
@@ -303,24 +305,30 @@ Function Add-MigrationReadOnlyMembers {
     #Import users from modify groups to the newly created ReadOnly Groups
         [CmdLetBinding()]
     Param (
-        [Parameter(Position=0)]
+        [Parameter()]
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
 
     PROCESS {
-        if (Test-Path $CsvFile) {
-            $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
+        try {
+            if (Test-Path $CsvFile) {
+                $CsvFileImported = Import-Csv -Path $CsvFile -Delimiter ";"
 
-            foreach ($line in $CsvFileImported) {
-                $modifyACL = $line.modifyACL.Substring(3)
-                $currentMembers = Get-ADGroupMember -Identity $modifyACL
-                foreach ($aclMember in $currentMembers) {
-                    Get-ADGroup -Identity $line.readonlyACL | Add-ADGroupMember -Members $aclMember.SamAccountName -WhatIf
+                foreach ($line in $CsvFileImported) {
+                    $modifyACL = $line.modifyACL.Substring(3)
+                    $currentMembers = Get-ADGroupMember -Identity $modifyACL
+                    foreach ($aclMember in $currentMembers) {
+                        Get-ADGroup -Identity $line.readonlyACL | Add-ADGroupMember -Members $aclMember.SamAccountName
+                        Write-Output "New member ($($aclMember.SamAccountName)) added to Security Group $($line.readonlyACL)"
+                        Write-MigrationLogging -LogMessage "New member ($($aclMember.SamAccountName)) added to Security Group $($line.readonlyACL)"
+                    }
                 }
+            } else {
+                Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
+                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
             }
-        } else {
-            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
-            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
+        } catch {
+            Write-Error $Error
         }
     }
 }
