@@ -20,10 +20,11 @@
 # - Add proper Begin, Process, End codeblocks
 # - Add ShouldProcess() support like it is supposed to in all applicable functions
 
-
+Initialize-Module -ModuleName ActiveDirectory
+Initialize-Module -ModuleName NTFSSecurity
 
 # Test bit for module import
-try {
+<#try {
     Import-Module ActiveDirectory -ErrorAction Stop
 } catch [System.IO.FileNotFoundException] {
     Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory failed! Try this code to fix the problem: Initialize-Module(ActiveDirectory)"
@@ -37,7 +38,7 @@ try {
     Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module NTFSSecurity failed! Try this code to fix the problem: Initialize-Module(ActiveDirectory)"
 } catch {
     Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module NTFSSecurity failed! $($error[-1])"
-}
+}#>
 
 #Set Initial Variables
 $workingDir = "D:\Migratie"         #Base directory. IMPORTANT: Don't add a trailing backslash (\) at the end!
@@ -102,6 +103,14 @@ Function Write-MigrationLogging {
     )
     $dateTime = Get-Date -Format "dd-MM-yyyy HH:mm:ss:fff"
     "$($dateTime): [$($LogLevel)] - $($LogMessage)" | Out-File -FilePath ($($logDir) + "MigrateLogging.txt") -Append
+}
+Function Reset-PowerShellGalleryStuff {
+#Sometimes everything to use the PowerShell Gallery, NuGet and all that stuff is just plain old broken.
+#To fix it there are several steps. Just run this function if necessary and try what you wanted to do again.
+
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 #TLS 1.0 and 1.1 are not supported, this is usually an issue these days (source: https://stackoverflow.com/questions/51406685/how-do-i-install-the-nuget-provider-for-powershell-on-a-unconnected-machine-so-i)
+Register-PSRepository -Default  #Same as before, this appearantly is an issue sometimes. Encountered it often. (source: https://stackoverflow.com/questions/63385304/powershell-install-no-match-was-found-for-the-specified-search-criteria-and-mo)
+Install-PackageProvider -Name NuGet #when things are working properly again, might as well install this packageprovider as well
 }
 #endregion Helper functions
 
