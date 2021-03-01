@@ -106,29 +106,27 @@ Function Write-MigrationLogging {
 }
 #endregion Helper functions
 
-#NOT my module, have to check it and make it consistence to the way I write. Also I have to check where I found it to give credits to the original author!
-Function Initialize-Module ($m) {
+#Original function created by Peter Mortensen (https://stackoverflow.com/users/63550/peter-mortensen)
+Function Initialize-Module {
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$ModuleName
+    )
     # If module is imported say that and do nothing
-    if (Get-Module | Where-Object {$_.Name -eq $m}) {
-        write-host "Module $m is already imported."
-    }
-    else {
-
+    if (Get-Module | Where-Object {$_.Name -eq $ModuleName}) {
+        Write-Output "Module $($ModuleName) is already imported."
+    } else {
         # If module is not imported, but available on disk then import
-        if (Get-Module -ListAvailable | Where-Object {$_.Name -eq $m}) {
-            Import-Module $m -Verbose
-        }
-        else {
-
+        if (Get-Module -ListAvailable | Where-Object {$_.Name -eq $ModuleName}) {
+            Import-Module $ModuleName -Verbose
+        } else {
             # If module is not imported, not available on disk, but is in online gallery then install and import
-            if (Find-Module -Name $m | Where-Object {$_.Name -eq $m}) {
-                Install-Module -Name $m -Force -Verbose -Scope CurrentUser
-                Import-Module $m -Verbose
-            }
-            else {
-
+            if (Find-Module -Name $ModuleName | Where-Object {$_.Name -eq $ModuleName}) {
+                Install-Module -Name $ModuleName -Force -Verbose -Scope CurrentUser
+                Import-Module $ModuleName -Verbose
+            } else {
                 # If module is not imported, not available and not in online gallery then abort
-                write-host "Module $m not imported, not available and not in online gallery, exiting."
+                Write-Output "Module $ModuleName not imported, not available and not in online gallery, exiting."
                 EXIT 1
             }
         }
@@ -186,8 +184,6 @@ Function Backup-MigrationStartingPoint {
         }
     }
 }
-
-
 Function Export-MigrationSecurityGroups {
     [CmdletBinding(SupportsShouldProcess)]
     param(
@@ -351,7 +347,6 @@ Function Clear-MigrationModifyGroups {
         }
     }
 }
-
 Function Initialize-MigrationRollback {
     [CmdLetBinding(ConfirmImpact="Low",
         SupportsShouldProcess=$true)]
@@ -422,7 +417,6 @@ Function Initialize-MigrationRollback {
         }
     }
 }
-
 #region Servicedesk function
 Function Get-MigrationPreviousRights {
     [CmdLetBinding()]
