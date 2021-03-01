@@ -47,7 +47,6 @@ $ADSearchBase = ""                  #Use searchbase (example: OU=SecurityGroups,
 
 $csvDir = "$($workingDir)\Csv\"     #location for csv files
 $logDir = "$($workingDir)\Log\"     #location for log files
-#$xmlDir = "$($workingDir)\Xml\"     #location for xml files, don't know if we will use this
 
 #region Helper functions
 Function Convert-MigrationSecuritygroup {
@@ -106,7 +105,8 @@ Function Write-MigrationLogging {
 }
 #endregion Helper functions
 
-#Original function created by Peter Mortensen (https://stackoverflow.com/users/63550/peter-mortensen)
+#Original function created by Peter Mortensen (https://stackoverflow.com/users/63550/peter-mortensen). Many thanks to you sir!
+#Edited by myself to my way of writing code and made it PowerShelly like with Param() block etc.
 Function Initialize-Module {
     Param(
         [Parameter(Mandatory=$true)]
