@@ -20,6 +20,8 @@
 # - Add proper Begin, Process, End codeblocks
 # - Add ShouldProcess() support like it is supposed to in all applicable functions
 
+
+
 # Test bit for module import
 try {
     Import-Module ActiveDirectory -ErrorAction Stop
@@ -46,6 +48,63 @@ $ADSearchBase = ""                  #Use searchbase (example: OU=SecurityGroups,
 $csvDir = "$($workingDir)\Csv\"     #location for csv files
 $logDir = "$($workingDir)\Log\"     #location for log files
 #$xmlDir = "$($workingDir)\Xml\"     #location for xml files, don't know if we will use this
+
+#region Helper functions
+Function Convert-MigrationSecuritygroup {
+    Param(
+        [string]$SecurityGroup
+    )
+    if ($SecurityGroup -match "l.wijz") {
+        return $SecurityGroup.ToString()
+    }
+    if ($SecurityGroup -notmatch "DT_") {
+        $SecurityGroupSplit = $SecurityGroup -split ("\\")
+        $SecurityGroup = $SecurityGroupSplit[1]
+        $SecurityGroup = $SecurityGroup.Substring(2)
+        $SecurityGroup = "DT_Organisatie_" + $SecurityGroup + "_R"            
+    } else {
+        $SecurityGroup = (($SecurityGroup -split "\\")[1]) + "_R"
+        if ($SecurityGroup -notmatch "DT_Organisatie") {
+            $SecurityGroup = $SecurityGroup.Substring(3)
+            $SecurityGroup = "DT_Organisatie_" + $SecurityGroup
+        }
+    }
+
+    return $SecurityGroup.ToString()
+}
+Function Backup-MigrationSecurityGroup {
+    Param (
+        [string]$SecurityGroup
+    )
+
+    PROCESS {
+        try {
+            $CSV = ($SecurityGroup) + ".csv"
+            $ADGroupMembers = Get-ADGroupMember -Identity $SecurityGroup | ForEach-Object {
+                [pscustomobject]@{
+                    GroupName = $ADGroup.Name
+                    Name = $_.SamAccountName
+                }
+            }
+            $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
+        } catch {
+            Write-Error $error[-1]
+        }
+    }
+}
+Function Write-MigrationLogging {
+    #Function to write logging to keep a log of all that's happened.
+    Param(
+        [Parameter()]
+        [ValidateSet('Error','Information','Warning','Critical')]
+        [string]$LogLevel="Information",
+        [Parameter(Mandatory=$true)]
+        [string]$LogMessage        
+    )
+    $dateTime = Get-Date -Format "dd-MM-yyyy HH:mm:ss:fff"
+    "$($dateTime): [$($LogLevel)] - $($LogMessage)" | Out-File -FilePath ($($logDir) + "MigrateLogging.txt") -Append
+}
+#endregion Helper functions
 
 #NOT my module, have to check it and make it consistence to the way I write. Also I have to check where I found it to give credits to the original author!
 Function Initialize-Module ($m) {
@@ -128,26 +187,7 @@ Function Backup-MigrationStartingPoint {
     }
 }
 
-Function Backup-MigrationSecurityGroup {
-    Param (
-        [string]$SecurityGroup
-    )
 
-    PROCESS {
-        try {
-            $CSV = ($SecurityGroup) + ".csv"
-            $ADGroupMembers = Get-ADGroupMember -Identity $SecurityGroup | ForEach-Object {
-                [pscustomobject]@{
-                    GroupName = $ADGroup.Name
-                    Name = $_.SamAccountName
-                }
-            }
-            $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
-        } catch {
-            Write-Error $error[-1]
-        }
-    }
-}
 Function Export-MigrationSecurityGroups {
     [CmdletBinding(SupportsShouldProcess)]
     param(
@@ -311,34 +351,7 @@ Function Clear-MigrationModifyGroups {
         }
     }
 }
-Function Get-MigrationPreviousRights {
-    [CmdLetBinding()]
-    Param (
-        [Parameter(Position=0)]
-        [string]$DfsPath,
-        [string]$CsvFile="$($csvDir)Securitygroups.csv"
-    )
 
-    PROCESS {
-        if (Test-Path $CsvFile) {
-            $file = Import-Csv $CsvFile -Delimiter ";"
-            foreach ($line in $file) {
-                if ((Compare-Object -ReferenceObject $DfsPath -DifferenceObject $line.DFSPath -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
-                    $previousSecGroup = Import-Csv ($csvDir + (($line.modifyACL).Substring(3)) + ".csv") -Delimiter ";"
-                    Write-Output "Users/Groups with previous access to $($DfsPath):"
-                    Write-Output "----------"
-                    foreach ($user in $previousSecGroup) {
-                        Write-Output $user.Name
-                    }
-                    Write-Output "To restore access rights add chosen user to $($line.modifyACL)"
-                }
-            }
-        } else {
-            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
-            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
-        }
-    }
-}
 Function Initialize-MigrationRollback {
     [CmdLetBinding(ConfirmImpact="Low",
         SupportsShouldProcess=$true)]
@@ -409,37 +422,34 @@ Function Initialize-MigrationRollback {
         }
     }
 }
-Function Convert-MigrationSecuritygroup {
-    Param(
-        [string]$SecurityGroup
+
+#region Servicedesk function
+Function Get-MigrationPreviousRights {
+    [CmdLetBinding()]
+    Param (
+        [Parameter(Position=0)]
+        [string]$DfsPath,
+        [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
-    if ($SecurityGroup -match "l.wijz") {
-        return $SecurityGroup.ToString()
-    }
-    if ($SecurityGroup -notmatch "DT_") {
-        $SecurityGroupSplit = $SecurityGroup -split ("\\")
-        $SecurityGroup = $SecurityGroupSplit[1]
-        $SecurityGroup = $SecurityGroup.Substring(2)
-        $SecurityGroup = "DT_Organisatie_" + $SecurityGroup + "_R"            
-    } else {
-        $SecurityGroup = (($SecurityGroup -split "\\")[1]) + "_R"
-        if ($SecurityGroup -notmatch "DT_Organisatie") {
-            $SecurityGroup = $SecurityGroup.Substring(3)
-            $SecurityGroup = "DT_Organisatie_" + $SecurityGroup
+
+    PROCESS {
+        if (Test-Path $CsvFile) {
+            $file = Import-Csv $CsvFile -Delimiter ";"
+            foreach ($line in $file) {
+                if ((Compare-Object -ReferenceObject $DfsPath -DifferenceObject $line.DFSPath -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
+                    $previousSecGroup = Import-Csv ($csvDir + (($line.modifyACL).Substring(3)) + ".csv") -Delimiter ";"
+                    Write-Output "Users/Groups with previous access to $($DfsPath):"
+                    Write-Output "----------"
+                    foreach ($user in $previousSecGroup) {
+                        Write-Output $user.Name
+                    }
+                    Write-Output "To restore access rights add chosen user to $($line.modifyACL)"
+                }
+            }
+        } else {
+            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
+            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
         }
     }
-
-    return $SecurityGroup.ToString()
 }
-Function Write-MigrationLogging {
-    #Function to write logging to keep a log of all that's happened.
-    Param(
-        [Parameter()]
-        [ValidateSet('Error','Information','Warning','Critical')]
-        [string]$LogLevel="Information",
-        [Parameter(Mandatory=$true)]
-        [string]$LogMessage        
-    )
-    $dateTime = Get-Date -Format "dd-MM-yyyy HH:mm:ss:fff"
-    "$($dateTime): [$($LogLevel)] - $($LogMessage)" | Out-File -FilePath ($($logDir) + "MigrateLogging.txt") -Append
-}
+#endregion Servicedesk function
