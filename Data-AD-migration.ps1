@@ -68,18 +68,27 @@ Function Convert-MigrationSecuritygroup {
     $orgSecurityGroup = $SecurityGroup
 
     if ($SecurityGroup -match "l.wijz") {
+        $SecurityGroup = $SecurityGroup + "_R"
         return $SecurityGroup.ToString()
     }
     if ($SecurityGroup -notmatch "DT_") {
         $SecurityGroupSplit = $SecurityGroup -split ("\\")
         $SecurityGroup = $SecurityGroupSplit[1]
         $SecurityGroup = $SecurityGroup.Substring(2)
-        $SecurityGroup = "DT_Organisatie_" + $SecurityGroup + "_R"            
+        $SecurityGroup = "DT_Organisatie_" + $SecurityGroup
+        if ($SecurityGroup.Length -gt 64) {
+            $SecurityGroup = $SecurityGroup.Substring(0,60)
+            $SecurityGroup = $SecurityGroup + "_R"
+        }            
     } else {
         $SecurityGroup = (($SecurityGroup -split "\\")[1]) + "_R"
         if ($SecurityGroup -notmatch "DT_Organisatie") {
             $SecurityGroup = $SecurityGroup.Substring(3)
             $SecurityGroup = "DT_Organisatie_" + $SecurityGroup
+        }
+        if ($SecurityGroup.Length -gt 64) {
+            $SecurityGroup = $SecurityGroup.Substring(0,60)
+            $SecurityGroup = $SecurityGroup + "_R"
         }
     }
     Write-MigrationLogging -LogMessage "Converted $($orgSecurityGroup) to new name $($SecurityGroup.ToString())."
@@ -264,14 +273,19 @@ Function New-MigrationADGroups {
         [string]$Description="Created by New-ADMigration PowerShell function.",
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
-    if ($PSCmdLet.ShouldProcess("AD Create new security group", "New-ADGroup")) {
+    PROCESS {
         try {
             if (Test-Path $CsvFile) {
-                $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
-                foreach ($line in $csvFile) {
+                $csvFileImport = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
+                foreach ($line in $csvFileImport) {
                     if ($PSCmdLet.ShouldProcess("AD Modify Security Groups", "Add-ADGroupMember")) {
-                        New-ADGroup -DisplayName $line.readonlyACL -GroupScope DomainLocal -GroupCategory Security -Name $line.readonlyACL -SamAccountName $line.readonlyACL -Path $OUPath -Description $Description -WhatIf
-                        Write-MigrationLogging -LogMessage "New AD Security Group created: $($OUPath)"
+                        $groupCheck = Get-ADGroup -LDAPFilter "(SAMAccountName=$($line.readonlyACL))"
+                        if ($groupCheck -eq $null) {
+                            New-ADGroup -DisplayName $line.readonlyACL -GroupScope DomainLocal -GroupCategory Security -Name $line.readonlyACL -SamAccountName $line.readonlyACL -Path $OUPath -Description $Description -ErrorAction SilentlyContinue
+                            Write-MigrationLogging -LogMessage "New AD Security Group ($($line.readonlyACL)) created in path: $($OUPath)"
+                        } else {
+                            Write-MigrationLogging -LogMessage "AD Group $($line.readonlyACL) already exists. Skipped creating new group. This log message can safely be ignored."
+                        }
                     }
                 }
             } else {
@@ -280,6 +294,8 @@ Function New-MigrationADGroups {
             }
         } catch [System.IO.FileNotFoundException] {
             Write-Error "Module niet geladen?"
+        } catch {
+            Write-Error $error.message
         }
     }
 }
