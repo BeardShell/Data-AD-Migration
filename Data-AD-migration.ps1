@@ -1,3 +1,24 @@
+<#
+.SYNOPSIS
+  Toolset for use with data migration
+.DESCRIPTION
+  This script can be used to automate migration.
+  It is capable of reading a disk or directory with a certain (or no) depth.
+  From that starting point it is possible to create new AD Groups, Set NTFS rights, clear old Groups.
+  Data copying itself is outside of the scope of this script
+.INPUTS
+  None
+.OUTPUTS
+  Securitygroups.csv
+.NOTES
+  Version:        1.0
+  Author:         Stefan Lievers a.k.a. BeardShell
+  Creation Date:  01/03/2021
+  Purpose/Change: First official useable release
+  
+.EXAMPLE
+  Export-MigrationSecurityGroup -RootPath "E:\"
+#>
 # Data AD Migration Tool
 # Written by Stefan a.k.a. BeardShell
 # Feel free to use any of these functions for your own use as you see fit (see license)
