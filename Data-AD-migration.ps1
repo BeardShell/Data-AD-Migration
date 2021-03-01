@@ -291,8 +291,8 @@ Function New-MigrationADGroups {
                     }
                 }
             } else {
-                Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
-                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
+                Write-Warning "File $($CsvFile) not found!"
+                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($CsvFile) not found!"
             }
         } catch [System.IO.FileNotFoundException] {
             Write-Error "Module niet geladen?"
@@ -324,8 +324,8 @@ Function Add-MigrationReadOnlyMembers {
                     }
                 }
             } else {
-                Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
-                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
+                Write-Warning "File $($CsvFile) not found!"
+                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($CsvFile) not found!"
             }
         } catch {
             Write-Error $Error
@@ -354,8 +354,8 @@ Function Set-MigrationNTFSRights {
                     }
                 }
             } else {
-                Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
-                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
+                Write-Warning "File $($CsvFile) not found!"
+                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($CsvFile) not found!"
             }
         } catch {
             Write-Error $error[-1]
@@ -365,7 +365,7 @@ Function Set-MigrationNTFSRights {
 Function Clear-MigrationModifyGroups {
     [CmdLetBinding(SupportsShouldProcess=$true)]
     Param (
-        [Parameter]
+        [Parameter()]
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
 
@@ -376,11 +376,13 @@ Function Clear-MigrationModifyGroups {
 
                 foreach ($line in $CsvFileImported) {
                     $modifyACL = $line.modifyACL.Substring(3)
-                    Get-ADGroupMember $modifyACL | ForEach-Object { Remove-ADGroupMember -Identity $modifyACL -Members $_.SamAccountName -Confirm:$false -WhatIf }
+                    Get-ADGroupMember $modifyACL | ForEach-Object { Remove-ADGroupMember -Identity $modifyACL -Members $_.SamAccountName -Confirm:$false }
+                    Write-Output "All members removed from security group $($modifyACL)"
+                    Write-MigrationLogging -LogMessage "All members removed from security group $($modifyACL)"
                 }
             } else {
-                Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
-                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
+                Write-Warning "File $($CsvFile) not found!"
+                Write-MigrationLogging -LogLevel Warning -LogMessage "File $($CsvFile) not found!"
             }
         }
     }
@@ -479,8 +481,8 @@ Function Get-MigrationPreviousRights {
                 }
             }
         } else {
-            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
-            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
+            Write-Warning "File $($CsvFile) not found!"
+            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($CsvFile) not found!"
         }
     }
 }
