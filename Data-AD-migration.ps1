@@ -20,8 +20,7 @@
 # - Add proper Begin, Process, End codeblocks
 # - Add ShouldProcess() support like it is supposed to in all applicable functions
 
-Initialize-Module -ModuleName ActiveDirectory
-Initialize-Module -ModuleName NTFSSecurity
+
 
 # Test bit for module import
 <#try {
@@ -50,10 +49,24 @@ $csvDir = "$($workingDir)\Csv\"     #location for csv files
 $logDir = "$($workingDir)\Log\"     #location for log files
 
 #region Helper functions
+Function Write-MigrationLogging {
+    #Function to write logging to keep a log of all that's happened.
+    Param(
+        [Parameter()]
+        [ValidateSet('Error','Information','Warning','Critical')]
+        [string]$LogLevel="Information",
+        [Parameter(Mandatory=$true)]
+        [string]$LogMessage        
+    )
+    $dateTime = Get-Date -Format "dd-MM-yyyy HH:mm:ss:fff"
+    "$($dateTime): [$($LogLevel)] - $($LogMessage)" | Out-File -FilePath ($($logDir) + "MigrateLogging.txt") -Append
+}
 Function Convert-MigrationSecuritygroup {
     Param(
         [string]$SecurityGroup
     )
+    $orgSecurityGroup = $SecurityGroup
+
     if ($SecurityGroup -match "l.wijz") {
         return $SecurityGroup.ToString()
     }
@@ -69,7 +82,7 @@ Function Convert-MigrationSecuritygroup {
             $SecurityGroup = "DT_Organisatie_" + $SecurityGroup
         }
     }
-
+    Write-MigrationLogging -LogMessage "Converted $($orgSecurityGroup) to new name $($SecurityGroup.ToString())."
     return $SecurityGroup.ToString()
 }
 Function Backup-MigrationSecurityGroup {
@@ -86,34 +99,13 @@ Function Backup-MigrationSecurityGroup {
                     Name = $_.SamAccountName
                 }
             }
+            Write-MigrationLogging -LogMessage "Saved $($SecurityGroup) to file $($csvDir)$($CSV)"
             $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
         } catch {
             Write-Error $error[-1]
         }
     }
 }
-Function Write-MigrationLogging {
-    #Function to write logging to keep a log of all that's happened.
-    Param(
-        [Parameter()]
-        [ValidateSet('Error','Information','Warning','Critical')]
-        [string]$LogLevel="Information",
-        [Parameter(Mandatory=$true)]
-        [string]$LogMessage        
-    )
-    $dateTime = Get-Date -Format "dd-MM-yyyy HH:mm:ss:fff"
-    "$($dateTime): [$($LogLevel)] - $($LogMessage)" | Out-File -FilePath ($($logDir) + "MigrateLogging.txt") -Append
-}
-Function Reset-PowerShellGalleryStuff {
-#Sometimes everything to use the PowerShell Gallery, NuGet and all that stuff is just plain old broken.
-#To fix it there are several steps. Just run this function if necessary and try what you wanted to do again.
-
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 #TLS 1.0 and 1.1 are not supported, this is usually an issue these days (source: https://stackoverflow.com/questions/51406685/how-do-i-install-the-nuget-provider-for-powershell-on-a-unconnected-machine-so-i)
-Register-PSRepository -Default  #Same as before, this appearantly is an issue sometimes. Encountered it often. (source: https://stackoverflow.com/questions/63385304/powershell-install-no-match-was-found-for-the-specified-search-criteria-and-mo)
-Install-PackageProvider -Name NuGet #when things are working properly again, might as well install this packageprovider as well
-}
-#endregion Helper functions
-
 #Original function created by Peter Mortensen (https://stackoverflow.com/users/63550/peter-mortensen). Many thanks to you sir!
 #Edited by myself to my way of writing code and made it PowerShelly like with Param() block etc.
 Function Initialize-Module {
@@ -123,7 +115,7 @@ Function Initialize-Module {
     )
     # If module is imported say that and do nothing
     if (Get-Module | Where-Object {$_.Name -eq $ModuleName}) {
-        Write-Output "Module $($ModuleName) is already imported."
+        Write-Verbose "Module $($ModuleName) is already imported."
     } else {
         # If module is not imported, but available on disk then import
         if (Get-Module -ListAvailable | Where-Object {$_.Name -eq $ModuleName}) {
@@ -141,6 +133,19 @@ Function Initialize-Module {
         }
     }
 }
+Function Reset-PowerShellGalleryStuff {
+#Sometimes everything to use the PowerShell Gallery, NuGet and all that stuff is just plain old broken.
+#To fix it there are several steps. Just run this function if necessary and try what you wanted to do again.
+
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 #TLS 1.0 and 1.1 are not supported, this is usually an issue these days (source: https://stackoverflow.com/questions/51406685/how-do-i-install-the-nuget-provider-for-powershell-on-a-unconnected-machine-so-i)
+Register-PSRepository -Default  #Same as before, this appearantly is an issue sometimes. Encountered it often. (source: https://stackoverflow.com/questions/63385304/powershell-install-no-match-was-found-for-the-specified-search-criteria-and-mo)
+Install-PackageProvider -Name NuGet #when things are working properly again, might as well install this packageprovider as well
+}
+#endregion Helper functions
+
+Initialize-Module -ModuleName ActiveDirectory
+Initialize-Module -ModuleName NTFSSecurity
+
 Function Set-MigrationBasics {
     #Chech for directory existence and fix it if neccesary. 
     If (!(Test-Path $workingDir)) {
