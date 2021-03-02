@@ -468,13 +468,15 @@ Function Initialize-MigrationRollback {
                 }
                 if (($continueFlag -eq $true) -or ($null -eq $continueFlag)) {
                     foreach ($line in $CsvFileImported) {
-                        #Get-ADGroupMember -Identity $line.readonlyACL | ForEach-Object {Add-ADGroupMember -Identity ($line.modifyACL).Substring(3) -Members $_.SamAccountName -WhatIf}
+                        Get-ADGroupMember -Identity $line.readonlyACL | ForEach-Object {Add-ADGroupMember -Identity ($line.modifyACL).Substring(3) -Members $_.SamAccountName}
+                        Write-Output "Rollback: Adding members to security group $($line.modifyACL). (Source: $($line.readonlyACL))"
+                        Write-MigrationLogging -LogMessage "Rollback: Adding members to security group $($line.modifyACL). (Source: $($line.readonlyACL))"
                     }
                 }
             } 
         } else {
-            Write-Warning "File $($csvDir)SecurityGroups.csv not found!"
-            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($csvDir)SecurityGroups.csv not found!"
+            Write-Warning "File $($CsvFile) not found!"
+            Write-MigrationLogging -LogLevel Warning -LogMessage "File $($CsvFile) not found!"
         }
     }
 }
