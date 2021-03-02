@@ -61,7 +61,7 @@ try {
 }#>
 
 #Set Initial Variables
-$workingDir = "D:\Migratie"         #Base directory. IMPORTANT: Don't add a trailing backslash (\) at the end!
+$workingDir = "C:\Migratie"         #Base directory. IMPORTANT: Don't add a trailing backslash (\) at the end!
 $ADSearchBase = ""                  #Use searchbase (example: OU=SecurityGroups,DC=contose,DC=com)
 
 #--- DO NOT MAKE ANY ALTERATIONS TO THE SCRIPT BELOW THIS LINE ---#
@@ -125,12 +125,12 @@ Function Backup-MigrationSecurityGroup {
             $CSV = ($SecurityGroup) + ".csv"
             $ADGroupMembers = Get-ADGroupMember -Identity $SecurityGroup | ForEach-Object {
                 [pscustomobject]@{
-                    GroupName = $ADGroup.Name
+                    GroupName = $SecurityGroup.ToString()
                     Name = $_.SamAccountName
                 }
             }
             Write-MigrationLogging -LogMessage "Saved $($SecurityGroup) to file $($csvDir)$($CSV)"
-            $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";"
+            $ADGroupMembers | Export-Csv -Path "$($csvDir)$($CSV)" -Delimiter ";" -NoTypeInformation
         } catch {
             Write-Error $error[-1]
         }
@@ -180,25 +180,23 @@ Function Set-MigrationBasics {
     #Chech for directory existence and fix it if neccesary. 
     If (!(Test-Path $workingDir)) {
         New-Item -ItemType Directory -Path $workingDir
+        Write-Output "Directory $($workingDir) created."
         #No Write-MigrationLogging in this step, it will fail for not having the $logDir yet.
     }
 
     If (!(Test-Path $logDir)) {
         New-Item -ItemType Directory -Path $logDir
+        Write-Output "Directory $($logDir) created."
         Write-MigrationLogging -LogMessage "Directory $($logDir) created."
     }
 
     If (!(Test-Path $csvDir)) {
         New-Item -ItemType Directory -Path $csvDir
+        Write-Output "Directory $($csvDir) created."
         Write-MigrationLogging -LogMessage "Directory $($csvDir) created."
     }
-
-    If (!(Test-Path $xmlDir)) {
-        New-Item -ItemType Directory -Path $xmlDir
-        Write-MigrationLogging -LogMessage "Directory $($xmlDir) created."
-    }
 }
-Function Backup-MigrationStartingPoint {
+Function Backup-MigrationStartingPoint { # Don't use this function anymore, it's done automatically if you use Export-MigrationSecurityGroups
     [CmdLetBinding()]
     Param (
         [Parameter(ValueFromPipeline=$true,Mandatory=$true)]
@@ -356,15 +354,14 @@ Function Add-MigrationReadOnlyMembers {
 Function Set-MigrationNTFSRights {
     [CmdLetBinding()]
     Param (
-        [Parameter(Position=0)]
+        [Parameter()]
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
     PROCESS {
         try {
             if (Test-Path $CsvFile) {
-                $csvFile = Import-Csv -Path "$($csvDir)SecurityGroups.csv" -Delimiter ";"
-                Write-Output $?
-                foreach ($line in $csvFile) {
+                $csvFileImport = Import-Csv -Path $CsvFile -Delimiter ";"
+                foreach ($line in $csvFileImport) {
                     Add-NTFSAccess -Path $line.DFSPath -Account $line.readonlyACL -AccessRights ReadAndExecute -AccessType Allow -AppliesTo ThisFolderSubfoldersAndFiles -ErrorAction SilentlyContinue
                     if ($? -eq $true) {
                         Write-MigrationLogging -LogMessage "NTFS Rights (ReadAndExecute) set to $($line.readonlyACL)"
@@ -379,7 +376,7 @@ Function Set-MigrationNTFSRights {
                 Write-MigrationLogging -LogLevel Warning -LogMessage "File $($CsvFile) not found!"
             }
         } catch {
-            Write-Error $error[-1]
+            Write-Error "Fuck!"
         }
     }
 }
@@ -416,11 +413,11 @@ Function Initialize-MigrationRollback {
         [Switch]
         $All,
         [Parameter(Mandatory=$false)]
-        [string[]]$ModifyGroup,
+        [string[]]$ModifyGroup=$null,
         [Parameter(Mandatory=$false)]
-        [string[]]$Path,
+        [string[]]$RootPath=$null,
         [Parameter(Mandatory=$false)]
-        [string[]]$ReadGroup,
+        [string[]]$ReadGroup=$null,
         [Parameter(Mandatory=$false)]
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
     )
@@ -455,18 +452,37 @@ Function Initialize-MigrationRollback {
                             }
                             
                             if ((Compare-Object -ReferenceObject $groupItem -DifferenceObject $compareObject -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
-                                Write-Output $line
-                            }
+                                $csvFilename = $csvDir + $compareObject + ".csv"
+                                $groupCheck = Get-ADGroup -LDAPFilter "(SAMAccountName=$($line.readonlyACL))"
+                                if ($null -eq $groupCheck) {
+                                    if (Test-Path $csvFilename) {
+                                        $readonlyCSV = Import-Csv -Path $csvFilename -Delimiter ";"
+                                        foreach ($member in $readonlyCSV) {
+                                            Add-ADGroupMember -Identity $compareObject -Members $member.Name
+                                            Write-Output "Adding $($member.Name) to $($compareObject) (source: $($csvFilename))"
+                                            Write-MigrationLogging -LogMessage "Adding $($member.Name) to $($compareObject) (source: $($csvFilename))"
+                                        }
+                                    }
+                                } else {
+                                    $readMembers = Get-ADGroupMember -Identity $line.readonlyACL
+                                    foreach ($member in $readMembers) {
+                                        Add-ADGroupMember -Identity $compareObject -Members $member.SamAccountName
+                                        Write-Output "Adding $($member.SamAccountName) to $($compareObject) (source: $($line.readonlyACL))"
+                                        Write-MigrationLogging -LogMessage "Adding $($member.SamAccountName) to $($compareObject) (source: $($line.readonlyACL))"
+                                    }
+                                }
+                            } 
                         }
                     }
                 }
-                if ($null -ne $Path) {
+                if ($null -ne $RootPath) {
+                    Write-Output $RootPath
                     Write-Output "Run Path commands"
                 }
                 if ($null -ne $ReadGroup) {
                     Write-Output "Run Readgroup commands"
                 }
-                if (($continueFlag -eq $true) -or ($null -eq $continueFlag)) {
+                if (($continueFlag -eq $true) -or ($null -eq $continueFlag) -and ($null -eq $ModifyGroup)) {
                     foreach ($line in $CsvFileImported) {
                         Get-ADGroupMember -Identity $line.readonlyACL | ForEach-Object {Add-ADGroupMember -Identity ($line.modifyACL).Substring(3) -Members $_.SamAccountName}
                         Write-Output "Rollback: Adding members to security group $($line.modifyACL). (Source: $($line.readonlyACL))"
