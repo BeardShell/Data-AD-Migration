@@ -30,30 +30,11 @@
 # - Add more try/catch uses
 # - Add proper error handling
 
-
-
-# Test bit for module import
-<#try {
-    Import-Module ActiveDirectory -ErrorAction Stop
-} catch [System.IO.FileNotFoundException] {
-    Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory failed! Try this code to fix the problem: Initialize-Module(ActiveDirectory)"
-} catch {
-    Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module ActiveDirectory failed! $($error[-1])"
-}
-
-try {
-    Import-Module NTFSSecurity -ErrorAction Stop
-} catch [System.IO.FileNotFoundException] {
-    Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module NTFSSecurity failed! Try this code to fix the problem: Initialize-Module(ActiveDirectory)"
-} catch {
-    Write-MigrationLogging -LogLevel "Critical" -LogMessage "Import-Module NTFSSecurity failed! $($error[-1])"
-}#>
-
 #Set Initial Variables
-$workingDir = "C:\Migratie"         #Base directory. IMPORTANT: Don't add a trailing backslash (\) at the end!
+$workingDir = "D:\Migration"         #Base directory. IMPORTANT: Don't add a trailing backslash (\) at the end!
 $ADSearchBase = ""                  #Use searchbase (example: OU=SecurityGroups,DC=contose,DC=com)
 
-#--- DO NOT MAKE ANY ALTERATIONS TO THE SCRIPT BELOW THIS LINE ---#
+#--- DO NOT MAKE ANY ALTERATIONS TO THE SCRIPT BELOW THIS LINE UNLESS ABSOLUTELY NECESSARY ---#
 
 $csvDir = "$($workingDir)\Csv\"     #location for csv files
 $logDir = "$($workingDir)\Log\"     #location for log files
@@ -125,9 +106,9 @@ Function Backup-MigrationSecurityGroup {
         }
     }
 }
-#Original function created by Peter Mortensen (https://stackoverflow.com/users/63550/peter-mortensen). Many thanks to you sir!
-#Edited by myself to my way of writing code and made it PowerShelly like with Param() block etc.
 Function Initialize-Module {
+    #Original function created by Peter Mortensen (https://stackoverflow.com/users/63550/peter-mortensen). Many thanks to you sir!
+    #Edited by myself to my way of writing code and made it PowerShelly like with Param() block etc.
     Param(
         [Parameter(Mandatory=$true)]
         [string]$ModuleName
