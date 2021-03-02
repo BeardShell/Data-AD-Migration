@@ -32,7 +32,7 @@
 
 #Set Initial Variables
 $workingDir = "D:\Migration"         #Base directory. IMPORTANT: Don't add a trailing backslash (\) at the end!
-$ADSearchBase = ""                  #Use searchbase (example: OU=SecurityGroups,DC=contose,DC=com)
+$ADSearchBase = ""                   #Use searchbase (example: OU=SecurityGroups,DC=contoso,DC=com)
 
 #--- DO NOT MAKE ANY ALTERATIONS TO THE SCRIPT BELOW THIS LINE UNLESS ABSOLUTELY NECESSARY ---#
 
