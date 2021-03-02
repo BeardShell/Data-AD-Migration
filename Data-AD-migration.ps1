@@ -287,7 +287,7 @@ Function Export-MigrationSecurityGroups {
 Function New-MigrationADGroups {
     [CmdletBinding(SupportsShouldProcess)]
     Param(
-        [Parameter()]
+        [Parameter(Mandatory=$true)]
         [string]$OUPath,
         [string]$Description="Created by New-ADMigration PowerShell function.",
         [string]$CsvFile="$($csvDir)Securitygroups.csv"
@@ -480,9 +480,38 @@ Function Initialize-MigrationRollback {
                     Write-Output "Run Path commands"
                 }
                 if ($null -ne $ReadGroup) {
-                    Write-Output "Run Readgroup commands"
+                    foreach ($groupItem in $ReadGroup) {
+                        foreach ($line in $CsvFileImported) {
+                            $compareObject = $line.readonlyACL                            
+                            if ((Compare-Object -ReferenceObject $groupItem -DifferenceObject $compareObject -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="})) {
+                                $modifyObject = $line.modifyACL
+                                if ($modifyObject -match "LV\\") {                      # double slash \\ used, one for the character slash and one for escaping the slash
+                                    $modifyObject = $modifyObject.Substring(3)
+                                }
+                                $csvFilename = $csvDir + $modifyObject + ".csv"
+                                $groupCheck = Get-ADGroup -LDAPFilter "(SAMAccountName=$($line.readonlyACL))"
+                                if ($null -eq $groupCheck) {
+                                    if (Test-Path $csvFilename) {
+                                        $modifyCSV = Import-Csv -Path $csvFilename -Delimiter ";"
+                                        foreach ($member in $modifyCSV) {
+                                            Add-ADGroupMember -Identity $modifyObject -Members $member.Name
+                                            Write-Output "Adding $($member.Name) to $($modifyObject) (source: $($csvFilename))"
+                                            Write-MigrationLogging -LogMessage "Adding $($member.Name) to $($modifyObject) (source: $($csvFilename))"
+                                        }
+                                    }
+                                } else {
+                                    $readMembers = Get-ADGroupMember -Identity $line.readonlyACL
+                                    foreach ($member in $readMembers) {
+                                        Add-ADGroupMember -Identity $modifyObject -Members $member.SamAccountName
+                                        Write-Output "Adding $($member.SamAccountName) to $($modifyObject) (source: $($line.readonlyACL))"
+                                        Write-MigrationLogging -LogMessage "Adding $($member.SamAccountName) to $($modifyObject) (source: $($line.readonlyACL))"
+                                    }
+                                }
+                            }
+                        } 
+                    }
                 }
-                if (($continueFlag -eq $true) -or ($null -eq $continueFlag) -and ($null -eq $ModifyGroup)) {
+                if (($continueFlag -eq $true) -or ($null -eq $continueFlag) -and ($null -eq $ModifyGroup) -and ($null -eq $ReadGroup)) {
                     foreach ($line in $CsvFileImported) {
                         Get-ADGroupMember -Identity $line.readonlyACL | ForEach-Object {Add-ADGroupMember -Identity ($line.modifyACL).Substring(3) -Members $_.SamAccountName}
                         Write-Output "Rollback: Adding members to security group $($line.modifyACL). (Source: $($line.readonlyACL))"
